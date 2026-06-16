@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import bcrypt from "bcryptjs";
 
-const SUPA_URL  = "https://dwmnrvhlddzynhtkjjqq.supabase.co";
-const SUPA_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3bW5ydmhsZGR6eW5odGtqanFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNDMzNDcsImV4cCI6MjA5NjkxOTM0N30.feRbP4Zog74FI4r85OaJdoLc8Dmcytykc0mdrgpweHs";
+// ════════════════════════════════════════════════════════
+// SUPABASE CONFIG — loaded from .env (VITE_SUPA_URL / VITE_SUPA_ANON)
+// ════════════════════════════════════════════════════════
+const SUPA_URL  = import.meta.env.VITE_SUPA_URL  || "";
+const SUPA_ANON = import.meta.env.VITE_SUPA_ANON || "";
 const H = {"Content-Type":"application/json","apikey":SUPA_ANON,"Authorization":`Bearer ${SUPA_ANON}`};
 
 const supa = {
@@ -27,11 +31,8 @@ const getSession  = () => { try{return JSON.parse(sessionStorage.getItem(SESSION
 const saveSession = (s) => sessionStorage.setItem(SESSION_KEY,JSON.stringify(s));
 const clearSession= () => sessionStorage.removeItem(SESSION_KEY);
 
-const RESEND_KEY_STORAGE = "portal_resend_key";
-// Key loaded from Vercel environment variable (set in Vercel dashboard)
-// Falls back to localStorage for local testing
-const DEFAULT_RESEND_KEY = import.meta.env.VITE_RESEND_KEY || "";
-const getResendKey = () => localStorage.getItem(RESEND_KEY_STORAGE) || DEFAULT_RESEND_KEY;
+// Resend API key is managed exclusively server-side (Vercel env: RESEND_API_KEY).
+// It is never stored or read client-side to prevent key exposure.
 
 const sendPortalOTP = async (email, storeName, purpose="sign-in") => {
   const otp    = String(Math.floor(100000+Math.random()*900000));
@@ -889,12 +890,17 @@ function Accounts({store,data,session,saveField}){
   const save=async()=>{
     if(!form.name||!form.username||!form.password){setMsg("Name, username and password required");return;}
     setSaving(true);
+    let finalForm = {...form};
+    // Hash if it's not already a bcrypt hash
+    if(!finalForm.password?.startsWith("$2")) {
+      finalForm.password = await bcrypt.hash(finalForm.password, 10);
+    }
     let updated;
     if(modal==="add"){
-      if(accounts.find(a=>a.username===form.username)){setMsg("Username already taken");setSaving(false);return;}
-      updated=[...accounts,form];
+      if(accounts.find(a=>a.username===finalForm.username)){setMsg("Username already taken");setSaving(false);return;}
+      updated=[...accounts,finalForm];
     } else {
-      updated=accounts.map(a=>a.id===form.id?form:a);
+      updated=accounts.map(a=>a.id===finalForm.id?finalForm:a);
     }
     const ok=await saveField("accounts",updated);
     setSaving(false);setMsg(ok?"Saved!":"Failed to save.");
