@@ -1,7 +1,34 @@
 // Vercel Serverless Function — runs on the server, not the browser
 // This is what actually calls Resend so the API key is never exposed
 
+const ALLOWED_ORIGINS = [
+  "https://pospro-portal.vercel.app",
+  "https://pospro-pwa.vercel.app",
+  // Add any custom domains here if you have them
+];
+
+function setCorsHeaders(req, res) {
+  const origin = req.headers.origin || "";
+  // Allow any vercel.app subdomain for your projects, or exact matches
+  const allowed =
+    ALLOWED_ORIGINS.includes(origin) ||
+    /^https:\/\/pospro(-portal|-pwa)?(-[a-z0-9]+)?\.vercel\.app$/.test(origin);
+
+  if (allowed) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Max-Age", "86400");
+}
+
 export default async function handler(req, res) {
+  // Handle CORS preflight
+  setCorsHeaders(req, res);
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+
   // Only allow POST
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
