@@ -22,7 +22,9 @@ const supa = {
     try {
       const res  = await fetch(base64DataUrl);
       const blob = await res.blob();
-      const path = `${storeId}/${productId}.jpg`;
+      const mime = blob.type || "image/jpeg";
+      const ext  = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
+      const path = `${storeId}/${productId}.${ext}`;
       const r = await fetch(
         `${SUPA_URL}/storage/v1/object/product-images/${path}`,
         {
@@ -30,15 +32,19 @@ const supa = {
           headers: {
             "apikey":        SUPA_ANON,
             "Authorization": `Bearer ${SUPA_ANON}`,
-            "Content-Type":  "image/jpeg",
+            "Content-Type":  mime,
             "x-upsert":      "true",
           },
           body: blob,
         }
       );
-      if (!r.ok) return null;
+      if (!r.ok) {
+        const err = await r.text().catch(()=>"");
+        console.error("[Storage] Upload failed", r.status, err);
+        return null;
+      }
       return `${SUPA_URL}/storage/v1/object/public/product-images/${path}`;
-    } catch { return null; }
+    } catch(e) { console.error("[Storage] Upload error", e); return null; }
   },
 };
 
