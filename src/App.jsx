@@ -121,8 +121,47 @@ export default function App(){
       supa.get("stores",{id:storeId}),
       supa.get("store_data",{store_id:storeId}),
     ]);
-    setStore(s); setData(d); setLoading(false);
-    // Track last load timestamp
+    setStore(s);
+
+    // ── ONE-TIME IMAGE MIGRATION ──
+    // Compress any existing full-size PNG images already stored in the database
+    // This runs silently in the background and saves the compressed versions back
+    if(d?.products?.length) {
+      const needsCompression = d.products.filter(p =>
+        p.image && p.image.startsWith("data:image/png") && p.image.length > 50000
+      );
+      if(needsCompression.length > 0) {
+        // Compress each oversized image
+        const compressBase64 = (base64, maxSize=300, quality=0.7) => new Promise(resolve => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            let w = img.width, h = img.height;
+            if(w > maxSize || h > maxSize) {
+              if(w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+              else       { w = Math.round(w * maxSize / h); h = maxSize; }
+            }
+            canvas.width = w; canvas.height = h;
+            canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL("image/jpeg", quality));
+          };
+          img.src = base64;
+        });
+        const compressed = await Promise.all(
+          d.products.map(async p => {
+            if(p.image && p.image.startsWith("data:image/png") && p.image.length > 50000) {
+              return {...p, image: await compressBase64(p.image)};
+            }
+            return p;
+          })
+        );
+        d.products = compressed;
+        // Save compressed images back to cloud silently
+        supa.update("store_data",{store_id:storeId},{products:compressed,updated_at:new Date().toISOString()}).catch(()=>{});
+      }
+    }
+
+    setData(d); setLoading(false);
     lastPushTs.current=new Date().toISOString();
     sessionStorage.setItem("portal_lastPush",lastPushTs.current);
   },[]);
