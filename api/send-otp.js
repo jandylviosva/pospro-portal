@@ -37,15 +37,49 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { email, otp, storeName, purpose } = req.body;
+  const { email, otp, storeName, purpose, reportTitle, reportHtml } = req.body;
 
-  if (!email || !otp) {
-    return res.status(400).json({ error: "Missing email or otp" });
+  if (!email) {
+    return res.status(400).json({ error: "Missing email" });
   }
 
   const RESEND_KEY = process.env.RESEND_KEY;
   if (!RESEND_KEY) {
     return res.status(500).json({ error: "Resend not configured" });
+  }
+
+  // Handle report email separately — no OTP needed
+  if (purpose === "report") {
+    if (!reportHtml) return res.status(400).json({ error: "Missing report content" });
+    try {
+      const r = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${RESEND_KEY}` },
+        body: JSON.stringify({
+          from: "POS Pro <noreply@pospro-portal.com>",
+          to: [email],
+          subject: `POS Pro Report: ${reportTitle||"Report"}${storeName ? " — " + storeName : ""}`,
+          html: `<div style="font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:24px">
+            <div style="background:#4f46e5;border-radius:12px;padding:18px;text-align:center;margin-bottom:20px">
+              <div style="color:#fff;font-size:20px;font-weight:800">POS Pro</div>
+              <div style="color:rgba(255,255,255,0.6);font-size:12px">${storeName||"Store Report"}</div>
+            </div>
+            <h2 style="font-size:16px;color:#111;margin-bottom:16px">${reportTitle||"Report"}</h2>
+            ${reportHtml}
+            <p style="color:#9ca3af;font-size:11px;margin-top:24px">This report was generated from POS Pro and sent to your registered email.</p>
+          </div>`,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) return res.status(500).json({ error: "Failed to send report", detail: data });
+      return res.status(200).json({ ok: true });
+    } catch(e) {
+      return res.status(500).json({ error: "Server error" });
+    }
+  }
+
+  if (!otp) {
+    return res.status(400).json({ error: "Missing otp" });
   }
 
   const subjects = {
