@@ -18,6 +18,36 @@ const supa = {
   async insert(table,data){
     try{const r=await fetch(`${SUPA_URL}/rest/v1/${table}`,{method:"POST",headers:{...H,"Prefer":"return=representation"},body:JSON.stringify(data)});const d=await r.json();return d[0]||null;}catch{return null;}
   },
+  async uploadImage(storeId, productId, base64DataUrl) {
+    try {
+      const res  = await fetch(base64DataUrl);
+      const blob = await res.blob();
+      const mime = blob.type || "image/jpeg";
+      const ext  = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
+      const path = `${storeId}/${productId}.${ext}`;
+      const r = await fetch(
+        `${SUPA_URL}/storage/v1/object/product-images/${path}`,
+        { method:"PUT", headers:{"apikey":SUPA_ANON,"Authorization":`Bearer ${SUPA_ANON}`,"Content-Type":mime,"x-upsert":"true"}, body:blob }
+      );
+      if(!r.ok){ const err=await r.text().catch(()=>""); console.error("[Storage] Upload failed",r.status,err); return null; }
+      return `${SUPA_URL}/storage/v1/object/public/product-images/${path}`;
+    } catch(e){ console.error("[Storage] Upload error",e); return null; }
+  },
+};
+
+// ── COMPUTE STOCK (auto products use recipe ingredients) ──
+const computeStockPortal = (p, allProducts) => {
+  if(p.stockMode !== "auto" || !p.recipe || !p.recipe.length) return p.stock;
+  let min = Infinity;
+  for(let i=0;i<p.recipe.length;i++){
+    const r = p.recipe[i];
+    if(!r.productId || !r.qty) continue;
+    const ing = allProducts.find(x=>x.id===r.productId);
+    if(!ing) continue;
+    const ingStock = ing.stockMode==="auto" ? computeStockPortal(ing, allProducts) : ing.stock;
+    min = Math.min(min, Math.floor(ingStock / r.qty));
+  }
+  return min === Infinity ? 0 : Math.max(0, min);
 };
 
 // ── IMAGE COMPRESSION ──
@@ -395,8 +425,8 @@ function Dashboard({store,data,primary}){
   const todaySales=todayOrders.reduce((s,o)=>s+o.total,0);
   const weekOrders=orders.filter(o=>o.dateKey>=weekStart());
   const weekSales=weekOrders.reduce((s,o)=>s+o.total,0);
-  const lowStock=products.filter(p=>p.active&&p.stock>0&&p.stock<=5);
-  const outOfStock=products.filter(p=>p.active&&p.stock<=0);
+  const lowStock=products.filter(p=>p.active&&computeStockPortal(p,products)>0&&computeStockPortal(p,products)<=5);
+  const outOfStock=products.filter(p=>p.active&&computeStockPortal(p,products)<=0);
   const CARDS=[
     {label:"Today's Sales",  value:fmt(todaySales), sub:`${todayOrders.length} orders`,    color:primary,    icon:"ti-currency-peso"},
     {label:"This Week",      value:fmt(weekSales),  sub:`${weekOrders.length} orders`,     color:"#0891b2",  icon:"ti-chart-line"},
@@ -665,7 +695,15 @@ function Inventory({store,data,session,saveField,primary}){
     else setMsg("Failed to delete.");
   };
 
-  const handleImg=async(e)=>{const f=e.target.files[0];if(!f)return;const compressed=await compressImage(f);setForm(x=>({...x,image:compressed}));};
+  const handleImg=async(e)=>{
+    const f=e.target.files[0];if(!f)return;
+    const compressed=await compressImage(f);
+    const sess=getSession();
+    const storeId=sess?.storeId||"";
+    const productId=form.id||("p"+Math.random().toString(36).slice(2,10));
+    const url=storeId?await supa.uploadImage(storeId,productId,compressed):null;
+    setForm(x=>({...x,image:url||compressed}));
+  };
 
   // ── CSV EXPORT ──
   const exportCSV=()=>{
@@ -773,13 +811,7 @@ function Inventory({store,data,session,saveField,primary}){
                 <td style={{padding:"10px 12px",color:"#6b7280"}}>{p.category}</td>
                 <td style={{padding:"10px 12px",fontWeight:700,color:primary||"#4f46e5"}}>{fmt(p.price)}</td>
                 <td style={{padding:"10px 12px"}}>{(()=>{
-                  // Compute auto stock from recipe for portal display
-                  let s=p.stock;
-                  if(p.stockMode==="auto"&&p.recipe?.length){
-                    let min=Infinity;
-                    p.recipe.forEach(r=>{if(!r.productId||!r.qty)return;const ing=products.find(x=>x.id===r.productId);if(!ing)return;min=Math.min(min,Math.floor(ing.stock/r.qty));});
-                    s=min===Infinity?0:Math.max(0,min);
-                  }
+                  const s=computeStockPortal(p,products);
                   return(<div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontWeight:700,color:s===0?"#dc2626":s<10?"#f59e0b":"#111"}}>{s}</span>{p.stockMode==="auto"&&<span style={{fontSize:8,fontWeight:700,padding:"1px 4px",borderRadius:4,background:"#e0f2fe",color:"#0891b2"}}>AUTO</span>}</div>);
                 })()}</td>
                 <td style={{padding:"10px 12px",fontFamily:"monospace",fontSize:11,color:"#6b7280"}}>{p.sku||"—"}</td>
