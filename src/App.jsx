@@ -35,7 +35,7 @@ const supa = {
   },
 };
 
-// ── COMPUTE STOCK (auto products use recipe ingredients) ──
+// ── COMPUTE STOCK (auto products use inclusions) ──
 const computeStockPortal = (p, allProducts) => {
   if(p.stockMode !== "auto" || !p.recipe || !p.recipe.length) return p.stock;
   let min = Infinity;
@@ -858,9 +858,9 @@ function Inventory({store,data,session,saveField,primary}){
                     <div>
                       <span style={{fontWeight:600}}>{p.name}</span>
                       <div style={{display:"flex",gap:4,marginTop:3,flexWrap:"wrap"}}>
-                        {p.recipe?.length>0&&<span style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:8,background:"#e0f2fe",color:"#0891b2"}}>{p.recipe.length} ingredients</span>}
+                        {p.recipe?.length>0&&<span style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:8,background:"#e0f2fe",color:"#0891b2"}}>{p.recipe.length} inclusions</span>}
                         {p.recipe?.length>0&&p.stockMode==="auto"&&<span style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:8,background:"#f0fdf4",color:"#16a34a"}}>⚙ auto stock</span>}
-                        {p.recipe?.length>0&&p.recipe.some(r=>{const ing=products.find(x=>x.id===r.productId);return !ing||!ing.active;})&&<span title="Some ingredients are hidden or deleted" style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:8,background:"#fef2f2",color:"#dc2626"}}>⚠ recipe issue</span>}
+                        {p.recipe?.length>0&&p.recipe.some(r=>{const ing=products.find(x=>x.id===r.productId);return !ing||!ing.active;})&&<span title="Some inclusions are hidden or deleted" style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:8,background:"#fef2f2",color:"#dc2626"}}>⚠ inclusion issue</span>}
                         {p.showInPOS===false&&<span style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:8,background:"#fef3c7",color:"#92400e"}}>Hidden from POS</span>}
                       </div>
                     </div>
@@ -966,17 +966,17 @@ function Inventory({store,data,session,saveField,primary}){
                 <FRow label="Price (₱)"><input type="number" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} style={INP}/></FRow>
               </div>
               {(form.stockMode||"manual")!=="auto"&&<FRow label="Stock"><input type="number" value={form.stock} onChange={e=>setForm(f=>({...f,stock:e.target.value}))} style={INP}/></FRow>}
-              {(form.stockMode||"manual")==="auto"&&form.recipe?.length>0&&<div style={{padding:"8px 12px",background:"#e0f2fe",borderRadius:8,fontSize:12,color:"#0891b2",fontWeight:600}}>⚙ Stock auto-computed from recipe ingredients</div>}
+              {(form.stockMode||"manual")==="auto"&&form.recipe?.length>0&&<div style={{padding:"8px 12px",background:"#e0f2fe",borderRadius:8,fontSize:12,color:"#0891b2",fontWeight:600}}>⚙ Stock auto-computed from inclusions</div>}
               {form.recipe?.length>0&&(
                 <FRow label="Stock Mode">
                   <div style={{display:"flex",gap:8,marginTop:4}}>
                     {["manual","auto"].map(m=>(
                       <button key={m} onClick={()=>setForm(f=>({...f,stockMode:m}))} style={{flex:1,padding:"7px 0",borderRadius:8,border:`1.5px solid ${(form.stockMode||"manual")===m?"#4f46e5":"#e5e7eb"}`,background:(form.stockMode||"manual")===m?"#4f46e5":"#fff",color:(form.stockMode||"manual")===m?"#fff":"#6b7280",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                        {m==="auto"?"⚙ Auto (from recipe)":"Manual"}
+                        {m==="auto"?"⚙ Auto (from inclusions)":"Manual"}
                       </button>
                     ))}
                   </div>
-                  {(form.stockMode||"manual")==="auto"&&<div style={{fontSize:11,color:"#0891b2",marginTop:5}}>Stock = minimum servings possible from ingredient stocks</div>}
+                  {(form.stockMode||"manual")==="auto"&&<div style={{fontSize:11,color:"#0891b2",marginTop:5}}>Stock = minimum servings possible from inclusion stocks</div>}
                 </FRow>
               )}
               <FRow label="SKU"><input value={form.sku} onChange={e=>setForm(f=>({...f,sku:e.target.value.toUpperCase()}))} style={{...INP,fontFamily:"monospace"}}/></FRow>
@@ -991,22 +991,22 @@ function Inventory({store,data,session,saveField,primary}){
                   <div onClick={()=>setForm(f=>({...f,showInPOS:!(f.showInPOS!==false)}))} style={{width:40,height:22,borderRadius:11,background:form.showInPOS!==false?"#4f46e5":"#d1d5db",position:"relative",transition:"background 0.2s",flexShrink:0,cursor:"pointer"}}>
                     <div style={{width:18,height:18,borderRadius:"50%",background:"#fff",position:"absolute",top:2,left:form.showInPOS!==false?20:2,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
                   </div>
-                  <span style={{fontSize:12,color:"#6b7280"}}>{form.showInPOS!==false?"Visible in POS cashier grid":"Hidden from POS cashier grid (ingredients, internal items)"}</span>
+                  <span style={{fontSize:12,color:"#6b7280"}}>{form.showInPOS!==false?"Visible in POS cashier grid":"Hidden from POS cashier grid (inclusions, internal items)"}</span>
                 </label>
               </FRow>
-              <FRow label="Recipe / Ingredients" hint="optional — deducts ingredient stock on sale">
+              <FRow label="Inclusions" hint="optional — deducts stock on sale">
                 <div style={{marginTop:4}}>
                   {(form.recipe||[]).map((r,i)=>(
                     <div key={i} style={{display:"flex",gap:6,alignItems:"center",marginBottom:6}}>
                       <select value={r.productId||""} onChange={e=>{const rec=[...(form.recipe||[])];rec[i]={...rec[i],productId:e.target.value};setForm(f=>({...f,recipe:rec}));}} style={{...INP,flex:2,padding:"6px 8px"}}>
-                        <option value="">— Select ingredient —</option>
+                        <option value="">— Select inclusion —</option>
                         {products.filter(p=>p.active&&p.id!==form.id).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                       <input type="number" min={0.01} step={0.01} value={r.qty||""} onChange={e=>{const rec=[...(form.recipe||[])];rec[i]={...rec[i],qty:parseFloat(e.target.value)||0};setForm(f=>({...f,recipe:rec}));}} placeholder="Qty" style={{...INP,width:70,padding:"6px 8px",textAlign:"center"}}/>
                       <button onClick={()=>{const rec=(form.recipe||[]).filter((_,j)=>j!==i);setForm(f=>({...f,recipe:rec}));}} style={{padding:"5px 8px",background:"#fef2f2",border:"1px solid #fecaca",borderRadius:6,cursor:"pointer",color:"#dc2626",flexShrink:0}}>✕</button>
                     </div>
                   ))}
-                  <button onClick={()=>setForm(f=>({...f,recipe:[...(f.recipe||[]),{productId:"",qty:1}]}))} style={{padding:"5px 12px",border:"1.5px dashed #d1d5db",borderRadius:7,cursor:"pointer",fontSize:11,color:"#6b7280",background:"#f9fafb",width:"100%"}}>+ Add Ingredient</button>
+                  <button onClick={()=>setForm(f=>({...f,recipe:[...(f.recipe||[]),{productId:"",qty:1}]}))} style={{padding:"5px 12px",border:"1.5px dashed #d1d5db",borderRadius:7,cursor:"pointer",fontSize:11,color:"#6b7280",background:"#f9fafb",width:"100%"}}>+ Add Inclusion</button>
                 </div>
               </FRow>
               {msg&&<div style={{fontSize:12,color:msg==="Saved!"?"#166534":"#dc2626",fontWeight:700}}>{msg}</div>}
