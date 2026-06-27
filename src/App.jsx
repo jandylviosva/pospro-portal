@@ -834,7 +834,11 @@ function Inventory({store,data,session,saveField,primary}){
   // Logging helper — appends to logs array in cloud
   const addPortalLog = async (type, action, detail) => {
     try {
-      const existing = data?.logs || [];
+      // Always fetch fresh logs from cloud — never use stale data?.logs
+      // (data is a snapshot from last render; using it causes entries to be
+      // written on top of an outdated array and end up buried or lost)
+      const fresh = await supa.get("store_data", {store_id: session?.storeId});
+      const existing = fresh?.logs || data?.logs || [];
       const entry = {
         id: "log-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,6),
         type, action, detail,
@@ -845,8 +849,9 @@ function Inventory({store,data,session,saveField,primary}){
         dateKey: new Date().toISOString().slice(0,10),
       };
       const SIX_MONTHS_AGO = new Date(Date.now() - 180*24*60*60*1000).toISOString();
-      const trimmed = existing.filter(l => l.ts > SIX_MONTHS_AGO).slice(0, 4999);
-      await saveField("logs", [entry, ...trimmed]);
+      // Prepend new entry so it always appears first (newest at top)
+      const updated = [entry, ...existing.filter(l => l.ts > SIX_MONTHS_AGO)].slice(0, 5000);
+      await saveField("logs", updated);
     } catch(e) {}
   };
 
