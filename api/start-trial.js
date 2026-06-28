@@ -77,8 +77,10 @@ export default async function handler(req, res) {
   }
 
   const RESEND_KEY  = process.env.RESEND_KEY;
-  const SUPA_URL    = process.env.VITE_SUPA_URL  || process.env.SUPA_URL;
-  const SUPA_KEY    = process.env.VITE_SUPA_ANON || process.env.SUPA_KEY;
+  // VITE_ vars are only available during frontend build, not in serverless functions.
+  // Use SUPA_URL and SUPA_ANON as plain server-side env vars in Vercel.
+  const SUPA_URL    = process.env.SUPA_URL    || process.env.VITE_SUPA_URL;
+  const SUPA_KEY    = process.env.SUPA_ANON   || process.env.VITE_SUPA_ANON;
   const DEV_EMAIL   = process.env.DEV_ADMIN_EMAIL || process.env.DEV_EMAIL;
 
   if (!RESEND_KEY)  return res.status(500).json({ error: "Email service not configured" });
