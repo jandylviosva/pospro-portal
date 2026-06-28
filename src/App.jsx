@@ -569,12 +569,7 @@ function Dashboard({store,data,primary}){
       {activeShift&&(()=>{
         const shiftOrders=orders.filter(o=>o.shiftId===activeShift.id);
         const shiftSales=shiftOrders.reduce((s,o)=>s+o.total,0);
-        // Build live payment breakdown from actual orders
-        const liveBreakdown=shiftOrders.reduce((acc,o)=>{
-          const m=o.payMethod||"cash";
-          acc[m]=(acc[m]||0)+o.total;
-          return acc;
-        },{});
+        const liveBreakdown=shiftOrders.reduce((acc,o)=>{const m=o.payMethod||"cash";acc[m]=(acc[m]||0)+o.total;return acc;},{});
         return(
           <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:12,padding:"14px 18px",marginBottom:18}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
@@ -582,13 +577,8 @@ function Dashboard({store,data,primary}){
               <b style={{color:"#166534",fontSize:14}}>Shift In Progress</b>
               <span style={{fontSize:12,color:"#6b7280",marginLeft:"auto"}}>{activeShift.startTime}</span>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:Object.keys(liveBreakdown).length>1?10:0}}>
-              {[
-                {label:"Cashier",     value:activeShift.cashier,           color:"#166534"},
-                {label:"Opening Cash",value:fmt(activeShift.openCash),     color:"#374151"},
-                {label:"Shift Sales", value:fmt(shiftSales),               color:primary||"#4f46e5"},
-                {label:"Orders",      value:`${shiftOrders.length} orders`, color:"#374151"},
-              ].map(r=>(
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:Object.keys(liveBreakdown).length>0?10:0}}>
+              {[{label:"Cashier",value:activeShift.cashier,color:"#166534"},{label:"Opening Cash",value:fmt(activeShift.openCash),color:"#374151"},{label:"Shift Sales",value:fmt(shiftSales),color:primary||"#4f46e5"},{label:"Orders",value:`${shiftOrders.length} orders`,color:"#374151"}].map(r=>(
                 <div key={r.label} style={{background:"#fff",borderRadius:8,padding:"8px 12px"}}>
                   <div style={{fontSize:10,color:"#9ca3af",fontWeight:600,textTransform:"uppercase",letterSpacing:0.4,marginBottom:3}}>{r.label}</div>
                   <div style={{fontSize:14,fontWeight:800,color:r.color}}>{r.value}</div>
@@ -662,6 +652,7 @@ function Dashboard({store,data,primary}){
 }
 
 // ════════════ REPORTS ════════════
+
 // ── PORTAL SHIFTS TAB ──
 function PortalShiftsTab({shifts,fmt,primary}){
   const [shiftPeriod,setShiftPeriod]=useState("all");
@@ -706,35 +697,39 @@ function PortalShiftsTab({shifts,fmt,primary}){
       </div>
       {filteredShifts.length===0&&<Card><div style={{textAlign:"center",color:"#9ca3af",padding:"24px 0",fontSize:13}}>{shifts.length===0?"No completed shifts yet":"No shifts in selected period"}</div></Card>}
       {filteredShifts.map(s=>(
-          <Card key={s.id}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,flexWrap:"wrap",gap:6}}>
-              <div><div style={{fontWeight:800,fontSize:13}}>{s.cashier}</div><div style={{fontSize:11,color:"#9ca3af"}}>{s.startTime} → {s.endTime}</div></div>
-              <span style={{fontSize:13,fontWeight:800,padding:"3px 10px",borderRadius:10,background:s.overShort>=0?"#f0fdf4":"#fef2f2",color:s.overShort>=0?"#166534":"#991b1b"}}>{s.overShort>=0?"+":""}{fmt(s.overShort)}</span>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(90px,1fr))",gap:7,marginBottom:s.payBreakdown&&Object.keys(s.payBreakdown).length>1?8:0}}>
-              {[{l:"Sales",v:fmt(s.totalSales)},{l:"Opening",v:fmt(s.openCash)},{l:"Closing",v:fmt(s.closeCash)},{l:"Expenses",v:fmt(s.totalExpenses||0)},{l:"Orders",v:s.shiftOrders}].map(m=>(
-                <div key={m.l} style={{background:"#f9fafb",borderRadius:8,padding:"6px 10px"}}><div style={{fontSize:10,color:"#9ca3af"}}>{m.l}</div><div style={{fontSize:13,fontWeight:800}}>{m.v}</div></div>
+        <Card key={s.id}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,flexWrap:"wrap",gap:6}}>
+            <div><div style={{fontWeight:800,fontSize:13}}>{s.cashier}</div><div style={{fontSize:11,color:"#9ca3af"}}>{s.startTime} → {s.endTime}</div></div>
+            <span style={{fontSize:13,fontWeight:800,padding:"3px 10px",borderRadius:10,background:s.overShort>=0?"#f0fdf4":"#fef2f2",color:s.overShort>=0?"#166534":"#991b1b"}}>{s.overShort>=0?"+":""}{fmt(s.overShort)}</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(90px,1fr))",gap:7,marginBottom:s.payBreakdown&&Object.keys(s.payBreakdown).length>0?8:0}}>
+            {[{l:"Sales",v:fmt(s.totalSales)},{l:"Opening",v:fmt(s.openCash)},{l:"Closing",v:fmt(s.closeCash)},{l:"Expenses",v:fmt(s.totalExpenses||0)},{l:"Orders",v:s.shiftOrders}].map(m=>(
+              <div key={m.l} style={{background:"#f9fafb",borderRadius:8,padding:"6px 10px"}}><div style={{fontSize:10,color:"#9ca3af"}}>{m.l}</div><div style={{fontSize:13,fontWeight:800}}>{m.v}</div></div>
+            ))}
+          </div>
+          {s.payBreakdown&&Object.keys(s.payBreakdown).length>0&&(
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
+              <span style={{fontSize:10,color:"#9ca3af",fontWeight:600,alignSelf:"center"}}>PAYMENTS:</span>
+              {Object.entries(s.payBreakdown).map(([method,amt])=>(
+                <span key={method} style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,background:method==="cash"?"#dcfce7":"#eff6ff",color:method==="cash"?"#166534":"#1e40af"}}>
+                  {method.charAt(0).toUpperCase()+method.slice(1)}: {fmt(amt)}
+                </span>
               ))}
             </div>
-            {s.payBreakdown&&Object.keys(s.payBreakdown).length>0&&(
-              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
-                <span style={{fontSize:10,color:"#9ca3af",fontWeight:600,alignSelf:"center"}}>PAYMENTS:</span>
-                {Object.entries(s.payBreakdown).map(([method,amt])=>(
-                  <span key={method} style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:8,background:method==="cash"?"#dcfce7":"#eff6ff",color:method==="cash"?"#166534":"#1e40af"}}>
-                    {method.charAt(0).toUpperCase()+method.slice(1)}: {fmt(amt)}
-                  </span>
-                ))}
-              </div>
-            )}
-          </Card>
-        ))}
-        </div>);
-      })()
+          )}
+          {s.expenses?.length>0&&(
+            <div style={{marginTop:8,borderTop:"1px dashed #e5e7eb",paddingTop:8}}>
+              <div style={{fontSize:10,fontWeight:800,color:"#9ca3af",marginBottom:5,textTransform:"uppercase",letterSpacing:0.5}}>Expenses</div>
+              {s.expenses.map((e,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#6b7280",padding:"1px 0"}}><span>{e.name}</span><span>{fmt(parseFloat(e.amount)||0)}</span></div>
+              ))}
+            </div>
+          )}
+        </Card>
       ))}
     </div>
   );
 }
-
 
 function Reports({store,data,primary}){
   const [period,setPeriod]=useState("today");
@@ -887,8 +882,7 @@ function Inventory({store,data,session,saveField,primary}){
   const [deleteModal,setDeleteModal]=useState(null);
   const [deleteReason,setDeleteReason]=useState("");
   const [deleting,setDeleting]=useState(false);
-  // Action menu (same as PWA)
-  const [updateModal,setUpdateModal]=useState(null); // {product, action}
+  const [updateModal,setUpdateModal]=useState(null);
   const [actionVal,setActionVal]=useState("");
   const [actionVal2,setActionVal2]=useState("");
   const [actionLoading,setActionLoading]=useState(false);
@@ -933,97 +927,39 @@ function Inventory({store,data,session,saveField,primary}){
     else setMsg("Failed to delete.");
   };
 
-  // Logging helper — appends to logs array in cloud
-  const addPortalLog = async (type, action, detail) => {
-    try {
-      // Always fetch fresh logs from cloud — never use stale data?.logs
-      // (data is a snapshot from last render; using it causes entries to be
-      // written on top of an outdated array and end up buried or lost)
-      const fresh = await supa.get("store_data", {store_id: session?.storeId});
-      const existing = fresh?.logs || data?.logs || [];
-      const entry = {
-        id: "log-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,6),
-        type, action, detail,
-        actor: store?.owner_name || "Owner",
-        actorRole: "role_owner",
-        device: "portal",
-        ts: new Date().toISOString(),
-        dateKey: new Date().toISOString().slice(0,10),
-      };
-      const SIX_MONTHS_AGO = new Date(Date.now() - 180*24*60*60*1000).toISOString();
-      // Prepend new entry so it always appears first (newest at top)
-      const updated = [entry, ...existing.filter(l => l.ts > SIX_MONTHS_AGO)].slice(0, 5000);
-      await saveField("logs", updated);
-    } catch(e) {}
+  const addPortalLog=async(type,action,detail)=>{
+    try{
+      const fresh=await supa.get("store_data",{store_id:session?.storeId});
+      const existing=fresh?.logs||data?.logs||[];
+      const entry={id:"log-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,6),type,action,detail,actor:store?.owner_name||"Owner",actorRole:"role_owner",device:"portal",ts:new Date().toISOString(),dateKey:new Date().toISOString().slice(0,10)};
+      const SIX_MONTHS_AGO=new Date(Date.now()-180*24*60*60*1000).toISOString();
+      const updated=[entry,...existing.filter(l=>l.ts>SIX_MONTHS_AGO)].slice(0,5000);
+      await saveField("logs",updated);
+    }catch(e){}
   };
 
-  const openAction=(product,action)=>{
-    setUpdateModal({product,action});
-    setActionVal(action==="category"?product.category:"");
-    setActionVal2("");
-  };
+  const openAction=(product,action)=>{setUpdateModal({product,action});setActionVal(action==="category"?product.category:"");setActionVal2("");};
 
   const doAction=async()=>{
     const {product,action}=updateModal;
     setActionLoading(true);
-    let updated;
-    let logDetail="";
+    let updated;let logDetail="";
     const fmtP=(n)=>`₱${Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-
-    if(action==="rename"){
-      if(!actionVal.trim()){setActionLoading(false);return;}
-      updated=products.map(p=>p.id===product.id?{...p,name:actionVal.trim()}:p);
-      logDetail=`Renamed: "${product.name}" → "${actionVal.trim()}"`;
-    } else if(action==="category"){
-      updated=products.map(p=>p.id===product.id?{...p,category:actionVal}:p);
-      logDetail=`Category changed: ${product.name} — "${product.category}" → "${actionVal}"`;
-    } else if(action==="price"){
-      const newPrice=parseFloat(actionVal);
-      if(!newPrice||newPrice<=0){setActionLoading(false);return;}
-      updated=products.map(p=>p.id===product.id?{...p,price:newPrice}:p);
-      logDetail=`Price adjusted: ${product.name} — ${fmtP(product.price)} → ${fmtP(newPrice)}`;
-    } else if(action==="add_stock"){
-      const qty=parseInt(actionVal)||0;
-      if(qty<=0){setActionLoading(false);return;}
-      updated=products.map(p=>p.id===product.id?{...p,stock:p.stock+qty}:p);
-      logDetail=`Stock added: ${product.name} +${qty} (${product.stock} → ${product.stock+qty})${actionVal2?` — Note: ${actionVal2}`:""}`;
-    } else if(action==="remove_stock"){
-      const qty=parseInt(actionVal)||0;
-      if(qty<=0||!actionVal2.trim()){setActionLoading(false);return;}
-      const newStock=Math.max(0,product.stock-qty);
-      updated=products.map(p=>p.id===product.id?{...p,stock:newStock}:p);
-      logDetail=`Stock removed: ${product.name} -${qty} (${product.stock} → ${newStock}) — Reason: ${actionVal2}`;
-    } else if(action==="sku"){
-      if(!actionVal.trim()){setActionLoading(false);return;}
-      updated=products.map(p=>p.id===product.id?{...p,sku:actionVal.trim().toUpperCase()}:p);
-      logDetail=`SKU updated: ${product.name} — "${product.sku}" → "${actionVal.trim().toUpperCase()}"`;
-    } else if(action==="status"){
-      const newStatus=!product.active;
-      updated=products.map(p=>p.id===product.id?{...p,active:newStatus}:p);
-      logDetail=`Status changed: ${product.name} — ${product.active?"Active → Inactive":"Inactive → Active"}`;
-    } else if(action==="showInPOS"){
-      const newVal=product.showInPOS===false?true:false;
-      updated=products.map(p=>p.id===product.id?{...p,showInPOS:newVal}:p);
-      logDetail=`POS visibility: ${product.name} — ${newVal?"Now visible in POS":"Now hidden from POS"}`;
-    } else if(action==="stockMode"){
-      if(!product.recipe?.length){setActionLoading(false);return;}
-      const newMode=product.stockMode==="auto"?"manual":"auto";
-      updated=products.map(p=>p.id===product.id?{...p,stockMode:newMode}:p);
-      logDetail=`Stock mode: ${product.name} → ${newMode}`;
-    } else if(action==="image"){
-      const newImg=actionVal==="__remove__"?"":actionVal;
-      updated=products.map(p=>p.id===product.id?{...p,image:newImg}:p);
-      logDetail=newImg?`Image updated: ${product.name}`:`Image removed: ${product.name}`;
-    } else if(action==="delete"){
-      updated=products.filter(p=>p.id!==product.id);
-      logDetail=`Product deleted: "${product.name}" (SKU: ${product.sku||"—"})${actionVal2.trim()?` — Reason: ${actionVal2.trim()}`:""}`;
+    if(action==="rename"){if(!actionVal.trim()){setActionLoading(false);return;}updated=products.map(p=>p.id===product.id?{...p,name:actionVal.trim()}:p);logDetail=`Renamed: "${product.name}" → "${actionVal.trim()}"`;
+    }else if(action==="category"){updated=products.map(p=>p.id===product.id?{...p,category:actionVal}:p);logDetail=`Category changed: ${product.name} — "${product.category}" → "${actionVal}"`;
+    }else if(action==="price"){const newPrice=parseFloat(actionVal);if(!newPrice||newPrice<=0){setActionLoading(false);return;}updated=products.map(p=>p.id===product.id?{...p,price:newPrice}:p);logDetail=`Price adjusted: ${product.name} — ${fmtP(product.price)} → ${fmtP(newPrice)}`;
+    }else if(action==="add_stock"){const qty=parseInt(actionVal)||0;if(qty<=0){setActionLoading(false);return;}updated=products.map(p=>p.id===product.id?{...p,stock:p.stock+qty}:p);logDetail=`Stock added: ${product.name} +${qty} (${product.stock} → ${product.stock+qty})${actionVal2?` — Note: ${actionVal2}`:""}`;
+    }else if(action==="remove_stock"){const qty=parseInt(actionVal)||0;if(qty<=0||!actionVal2.trim()){setActionLoading(false);return;}const newStock=Math.max(0,product.stock-qty);updated=products.map(p=>p.id===product.id?{...p,stock:newStock}:p);logDetail=`Stock removed: ${product.name} -${qty} (${product.stock} → ${newStock}) — Reason: ${actionVal2}`;
+    }else if(action==="sku"){if(!actionVal.trim()){setActionLoading(false);return;}updated=products.map(p=>p.id===product.id?{...p,sku:actionVal.trim().toUpperCase()}:p);logDetail=`SKU updated: ${product.name} — "${product.sku}" → "${actionVal.trim().toUpperCase()}"`;
+    }else if(action==="status"){const newStatus=!product.active;updated=products.map(p=>p.id===product.id?{...p,active:newStatus}:p);logDetail=`Status changed: ${product.name} — ${product.active?"Active → Inactive":"Inactive → Active"}`;
+    }else if(action==="showInPOS"){const newVal=product.showInPOS===false?true:false;updated=products.map(p=>p.id===product.id?{...p,showInPOS:newVal}:p);logDetail=`POS visibility: ${product.name} — ${newVal?"Now visible in POS":"Now hidden from POS"}`;
+    }else if(action==="stockMode"){if(!product.recipe?.length){setActionLoading(false);return;}const newMode=product.stockMode==="auto"?"manual":"auto";updated=products.map(p=>p.id===product.id?{...p,stockMode:newMode}:p);logDetail=`Stock mode: ${product.name} → ${newMode}`;
+    }else if(action==="image"){const newImg=actionVal==="__remove__"?"":actionVal;updated=products.map(p=>p.id===product.id?{...p,image:newImg}:p);logDetail=newImg?`Image updated: ${product.name}`:`Image removed: ${product.name}`;
+    }else if(action==="delete"){updated=products.filter(p=>p.id!==product.id);logDetail=`Product deleted: "${product.name}" (SKU: ${product.sku||"—"})${actionVal2.trim()?` — Reason: ${actionVal2.trim()}`:""}`;
     }
-
     const ok=await saveField("products",updated);
-    if(ok && logDetail) await addPortalLog("INVENTORY", action, logDetail);
-    setActionLoading(false);
-    setUpdateModal(null);
-    setActionVal("");setActionVal2("");
+    if(ok&&logDetail)await addPortalLog("INVENTORY",action,logDetail);
+    setActionLoading(false);setUpdateModal(null);setActionVal("");setActionVal2("");
   };
 
   const handleImg=async(e)=>{
@@ -1308,53 +1244,14 @@ function Inventory({store,data,session,saveField,primary}){
               <button onClick={()=>setUpdateModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {[
-                {id:"rename",      label:"Rename",               icon:"ti-pencil",              color:"#4f46e5"},
-                {id:"category",    label:"Change Category",       icon:"ti-tag",                 color:"#0891b2"},
-                {id:"price",       label:"Adjust Price",          icon:"ti-currency-peso",       color:"#059669"},
-                {id:"image",       label:"Update Image",          icon:"ti-photo",               color:"#7c3aed"},
-                {id:"add_stock",   label:"Add Stock",             icon:"ti-plus",                color:"#16a34a"},
-                {id:"remove_stock",label:"Remove Stock",          icon:"ti-minus",               color:"#dc2626"},
-                {id:"sku",         label:"Edit SKU",              icon:"ti-barcode",             color:"#7c3aed"},
-                {id:"status",      label:"Toggle Status",         icon:"ti-eye",                 color:"#6b7280"},
-                {id:"showInPOS",   label:"Toggle POS Visibility", icon:"ti-layout-grid",         color:"#7c3aed"},
-                {id:"stockMode",   label:"Stock Mode",            icon:"ti-settings-automation", color:"#7c3aed"},
-              ].map(a=>(
+              {[{id:"rename",label:"Rename",icon:"ti-pencil",color:"#4f46e5"},{id:"category",label:"Change Category",icon:"ti-tag",color:"#0891b2"},{id:"price",label:"Adjust Price",icon:"ti-currency-peso",color:"#059669"},{id:"image",label:"Update Image",icon:"ti-photo",color:"#7c3aed"},{id:"add_stock",label:"Add Stock",icon:"ti-plus",color:"#16a34a"},{id:"remove_stock",label:"Remove Stock",icon:"ti-minus",color:"#dc2626"},{id:"sku",label:"Edit SKU",icon:"ti-barcode",color:"#7c3aed"},{id:"status",label:"Toggle Status",icon:"ti-eye",color:"#6b7280"},{id:"showInPOS",label:"Toggle POS Visibility",icon:"ti-layout-grid",color:"#7c3aed"},{id:"stockMode",label:"Stock Mode",icon:"ti-settings-automation",color:"#7c3aed"}].map(a=>(
                 <button key={a.id} onClick={()=>{
-                  if(a.id==="status"){
-                    // Instant toggle
-                    const p=updateModal.product;
-                    const updated=products.map(x=>x.id===p.id?{...x,active:!x.active}:x);
-                    saveField("products",updated).then(ok=>{
-                      if(ok) addPortalLog("INVENTORY","status",`Status changed: ${p.name} — ${p.active?"Active → Inactive":"Inactive → Active"}`);
-                    });
-                    setUpdateModal(null);
-                  } else if(a.id==="showInPOS"){
-                    const p=updateModal.product;
-                    const newVal=p.showInPOS===false?true:false;
-                    const updated=products.map(x=>x.id===p.id?{...x,showInPOS:newVal}:x);
-                    saveField("products",updated).then(ok=>{
-                      if(ok) addPortalLog("INVENTORY","showInPOS",`POS visibility: ${p.name} — ${newVal?"Now visible in POS":"Now hidden from POS"}`);
-                    });
-                    setUpdateModal(null);
-                  } else if(a.id==="stockMode"){
-                    const p=updateModal.product;
-                    if(!p.recipe?.length){return;}
-                    const newMode=p.stockMode==="auto"?"manual":"auto";
-                    const updated=products.map(x=>x.id===p.id?{...x,stockMode:newMode}:x);
-                    saveField("products",updated).then(ok=>{
-                      if(ok) addPortalLog("INVENTORY","stockMode",`Stock mode: ${p.name} → ${newMode}`);
-                    });
-                    setUpdateModal(null);
-                  } else {
-                    setUpdateModal({...updateModal,action:a.id});
-                    setActionVal(a.id==="category"?updateModal.product.category:"");
-                    setActionVal2("");
-                  }
+                  if(a.id==="status"){const p=updateModal.product;const upd=products.map(x=>x.id===p.id?{...x,active:!x.active}:x);saveField("products",upd).then(ok=>{if(ok)addPortalLog("INVENTORY","status",`Status changed: ${p.name} — ${p.active?"Active → Inactive":"Inactive → Active"}`);});setUpdateModal(null);}
+                  else if(a.id==="showInPOS"){const p=updateModal.product;const nv=p.showInPOS===false?true:false;const upd=products.map(x=>x.id===p.id?{...x,showInPOS:nv}:x);saveField("products",upd).then(ok=>{if(ok)addPortalLog("INVENTORY","showInPOS",`POS visibility: ${p.name} — ${nv?"Now visible in POS":"Now hidden from POS"}`);});setUpdateModal(null);}
+                  else if(a.id==="stockMode"){const p=updateModal.product;if(!p.recipe?.length)return;const nm=p.stockMode==="auto"?"manual":"auto";const upd=products.map(x=>x.id===p.id?{...x,stockMode:nm}:x);saveField("products",upd).then(ok=>{if(ok)addPortalLog("INVENTORY","stockMode",`Stock mode: ${p.name} → ${nm}`);});setUpdateModal(null);}
+                  else{setUpdateModal({...updateModal,action:a.id});setActionVal(a.id==="category"?updateModal.product.category:"");setActionVal2("");}
                 }} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:8,cursor:"pointer",textAlign:"left"}}>
-                  <div style={{width:34,height:34,borderRadius:9,background:a.color+"18",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                    <i className={`ti ${a.icon}`} style={{fontSize:17,color:a.color}}/>
-                  </div>
+                  <div style={{width:34,height:34,borderRadius:9,background:a.color+"18",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><i className={`ti ${a.icon}`} style={{fontSize:17,color:a.color}}/></div>
                   <span style={{fontWeight:700,fontSize:13,color:"#374151",flex:1}}>{a.label}</span>
                   {a.id==="status"&&<span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:10,background:updateModal.product.active?"#f0fdf4":"#fef2f2",color:updateModal.product.active?"#166534":"#991b1b"}}>{updateModal.product.active?"Active":"Inactive"}</span>}
                   {a.id!=="status"&&<i className="ti ti-chevron-right" style={{fontSize:15,color:"#d1d5db"}}/>}
@@ -1370,71 +1267,24 @@ function Inventory({store,data,session,saveField,primary}){
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <div style={{background:"#fff",borderRadius:16,padding:24,width:"100%",maxWidth:420,maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-              <div style={{fontWeight:800,fontSize:15}}>
-                {updateModal.action==="rename"?"Rename":updateModal.action==="category"?"Change Category":updateModal.action==="price"?"Adjust Price":updateModal.action==="image"?"Update Image":updateModal.action==="add_stock"?"Add Stock":updateModal.action==="remove_stock"?"Remove Stock":updateModal.action==="sku"?"Edit SKU":updateModal.action==="delete"?"Delete Product":"Update"}
-              </div>
+              <div style={{fontWeight:800,fontSize:15}}>{updateModal.action==="rename"?"Rename":updateModal.action==="category"?"Change Category":updateModal.action==="price"?"Adjust Price":updateModal.action==="image"?"Update Image":updateModal.action==="add_stock"?"Add Stock":updateModal.action==="remove_stock"?"Remove Stock":updateModal.action==="sku"?"Edit SKU":updateModal.action==="delete"?"Delete Product":"Update"}</div>
               <button onClick={()=>setUpdateModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"#9ca3af"}}>✕</button>
             </div>
-            <div style={{background:"#f9fafb",borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12,color:"#6b7280"}}>
-              Product: <b style={{color:"#111"}}>{updateModal.product.name}</b>
-            </div>
-
-            {updateModal.action==="rename"&&(
-              <FRow label="New Name">
-                <input value={actionVal} onChange={e=>setActionVal(e.target.value)} placeholder={updateModal.product.name} style={INP} autoFocus onKeyDown={e=>e.key==="Enter"&&doAction()}/>
-              </FRow>
-            )}
-            {updateModal.action==="category"&&(
-              <FRow label="New Category">
-                <select value={actionVal} onChange={e=>setActionVal(e.target.value)} style={INP}>
-                  {categories.map(c=><option key={c} value={c}>{c}</option>)}
-                </select>
-              </FRow>
-            )}
-            {updateModal.action==="price"&&(
-              <FRow label={`New Price (current: ₱${updateModal.product.price})`}>
-                <input type="number" value={actionVal} onChange={e=>setActionVal(e.target.value)} placeholder="0.00" style={INP} autoFocus/>
-              </FRow>
-            )}
-            {updateModal.action==="add_stock"&&(<>
-              <FRow label={`Quantity to Add (current: ${updateModal.product.stock})`}>
-                <input type="number" value={actionVal} onChange={e=>setActionVal(e.target.value)} placeholder="0" style={INP} autoFocus/>
-              </FRow>
-              <div style={{marginTop:10}}>
-                <FRow label="Note (optional)">
-                  <input value={actionVal2} onChange={e=>setActionVal2(e.target.value)} placeholder="e.g. Restock delivery" style={INP}/>
-                </FRow>
-              </div>
-            </>)}
-            {updateModal.action==="remove_stock"&&(<>
-              <FRow label={`Quantity to Remove (current: ${updateModal.product.stock})`}>
-                <input type="number" value={actionVal} onChange={e=>setActionVal(e.target.value)} placeholder="0" style={INP} autoFocus/>
-              </FRow>
-              <div style={{marginTop:10}}>
-                <FRow label="Reason (required)">
-                  <input value={actionVal2} onChange={e=>setActionVal2(e.target.value)} placeholder="e.g. Damaged, Expired…" style={INP}/>
-                </FRow>
-              </div>
-            </>)}
-            {updateModal.action==="sku"&&(
-              <FRow label={`New SKU (current: ${updateModal.product.sku||"none"})`}>
-                <input value={actionVal} onChange={e=>setActionVal(e.target.value.toUpperCase())} placeholder="e.g. SW00001" style={{...INP,fontFamily:"monospace",fontWeight:700}} autoFocus/>
-              </FRow>
-            )}
+            <div style={{background:"#f9fafb",borderRadius:8,padding:"8px 12px",marginBottom:14,fontSize:12,color:"#6b7280"}}>Product: <b style={{color:"#111"}}>{updateModal.product.name}</b></div>
+            {updateModal.action==="rename"&&<FRow label="New Name"><input value={actionVal} onChange={e=>setActionVal(e.target.value)} placeholder={updateModal.product.name} style={INP} autoFocus onKeyDown={e=>e.key==="Enter"&&doAction()}/></FRow>}
+            {updateModal.action==="category"&&<FRow label="New Category"><select value={actionVal} onChange={e=>setActionVal(e.target.value)} style={INP}>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></FRow>}
+            {updateModal.action==="price"&&<FRow label={`New Price (current: ₱${updateModal.product.price})`}><input type="number" value={actionVal} onChange={e=>setActionVal(e.target.value)} placeholder="0.00" style={INP} autoFocus/></FRow>}
+            {updateModal.action==="add_stock"&&<><FRow label={`Qty to Add (current: ${updateModal.product.stock})`}><input type="number" value={actionVal} onChange={e=>setActionVal(e.target.value)} placeholder="0" style={INP} autoFocus/></FRow><div style={{marginTop:10}}><FRow label="Note (optional)"><input value={actionVal2} onChange={e=>setActionVal2(e.target.value)} placeholder="e.g. Restock delivery" style={INP}/></FRow></div></>}
+            {updateModal.action==="remove_stock"&&<><FRow label={`Qty to Remove (current: ${updateModal.product.stock})`}><input type="number" value={actionVal} onChange={e=>setActionVal(e.target.value)} placeholder="0" style={INP} autoFocus/></FRow><div style={{marginTop:10}}><FRow label="Reason (required)"><input value={actionVal2} onChange={e=>setActionVal2(e.target.value)} placeholder="e.g. Damaged, Expired…" style={INP}/></FRow></div></>}
+            {updateModal.action==="sku"&&<FRow label={`New SKU (current: ${updateModal.product.sku||"none"})`}><input value={actionVal} onChange={e=>setActionVal(e.target.value.toUpperCase())} placeholder="e.g. SW00001" style={{...INP,fontFamily:"monospace",fontWeight:700}} autoFocus/></FRow>}
             {updateModal.action==="image"&&(
-              <div>
-                <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
-                  <div style={{width:80,height:80,borderRadius:10,border:"2px dashed #e5e7eb",overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",background:"#f9fafb",flexShrink:0}}>
-                    {(actionVal&&actionVal!=="__remove__")||(!actionVal&&updateModal.product.image)
-                      ?<img src={actionVal&&actionVal!=="__remove__"?actionVal:updateModal.product.image} alt="preview" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
-                      :<i className="ti ti-photo" style={{fontSize:28,color:"#d1d5db"}}/>}
-                  </div>
-                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                    <button onClick={()=>{const inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=async e=>{const f=e.target.files[0];if(!f)return;const compressed=await compressImage(f);const storeId=getSession()?.storeId||"";const url=storeId?await supa.uploadImage(storeId,updateModal.product.id,compressed):null;setActionVal(url||compressed);};inp.click();}} style={{padding:"7px 14px",border:"1px solid #e5e7eb",borderRadius:7,cursor:"pointer",fontSize:12,background:"#f9fafb",fontWeight:700,display:"flex",alignItems:"center",gap:5}}>
-                      <i className="ti ti-upload"/>Upload New Image
-                    </button>
-                    {(actionVal||updateModal.product.image)&&<button onClick={()=>setActionVal("__remove__")} style={{padding:"5px 12px",border:"1px solid #fecaca",borderRadius:7,cursor:"pointer",fontSize:11,background:"#fef2f2",color:"#991b1b"}}>Remove Image</button>}
-                  </div>
+              <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:14}}>
+                <div style={{width:80,height:80,borderRadius:10,border:"2px dashed #e5e7eb",overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",background:"#f9fafb",flexShrink:0}}>
+                  {(actionVal&&actionVal!=="__remove__")||(!actionVal&&updateModal.product.image)?<img src={actionVal&&actionVal!=="__remove__"?actionVal:updateModal.product.image} alt="preview" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<i className="ti ti-photo" style={{fontSize:28,color:"#d1d5db"}}/>}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  <button onClick={()=>{const inp=document.createElement("input");inp.type="file";inp.accept="image/*";inp.onchange=async e=>{const f=e.target.files[0];if(!f)return;const c=await compressImage(f);const sId=getSession()?.storeId||"";const url=sId?await supa.uploadImage(sId,updateModal.product.id,c):null;setActionVal(url||c);};inp.click();}} style={{padding:"7px 14px",border:"1px solid #e5e7eb",borderRadius:7,cursor:"pointer",fontSize:12,background:"#f9fafb",fontWeight:700,display:"flex",alignItems:"center",gap:5}}><i className="ti ti-upload"/>Upload</button>
+                  {(actionVal||updateModal.product.image)&&<button onClick={()=>setActionVal("__remove__")} style={{padding:"5px 12px",border:"1px solid #fecaca",borderRadius:7,cursor:"pointer",fontSize:11,background:"#fef2f2",color:"#991b1b"}}>Remove Image</button>}
                 </div>
               </div>
             )}
@@ -1445,12 +1295,9 @@ function Inventory({store,data,session,saveField,primary}){
                   <div style={{fontSize:12,color:"#6b7280"}}>This cannot be undone.</div>
                   {updateModal.product.stock>0&&<div style={{fontSize:12,color:"#dc2626",marginTop:6,fontWeight:700}}>{updateModal.product.stock} units of stock will be lost.</div>}
                 </div>
-                <FRow label="Reason" hint="optional">
-                  <input value={actionVal2} onChange={e=>setActionVal2(e.target.value)} placeholder="e.g. Discontinued, Duplicate…" style={INP} autoFocus/>
-                </FRow>
+                <FRow label="Reason" hint="optional"><input value={actionVal2} onChange={e=>setActionVal2(e.target.value)} placeholder="e.g. Discontinued…" style={INP} autoFocus/></FRow>
               </div>
             )}
-
             <div style={{display:"flex",gap:8,marginTop:16}}>
               <button onClick={()=>setUpdateModal({...updateModal,action:"menu"})} style={{flex:1,padding:"10px 0",border:"1px solid #e5e7eb",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:700}}>← Back</button>
               <button onClick={doAction} disabled={actionLoading} style={{flex:2,padding:"10px 0",background:actionLoading?"#a5b4fc":updateModal.action==="delete"?"#dc2626":(primary||"#4f46e5"),color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:800}}>
