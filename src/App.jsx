@@ -228,6 +228,7 @@ export default function App(){
   const [session,setSession]=useState(()=>getSession());
   const [store,setStore]=useState(null);
   const [data,setData]=useState(null);
+  const [licenseRow,setLicenseRow]=useState(null); // current license row for trial banner
   const [loading,setLoading]=useState(false);
   const [view,setView]=useState("dashboard");
   const [saveStatus,setSaveStatus]=useState("");
@@ -266,6 +267,13 @@ export default function App(){
       supa.get("store_data",{store_id:storeId}),
     ]);
     setStore(s);
+
+    // Fetch current license row so the trial banner has accurate data
+    if(s?.license_id) {
+      supa.get("licenses",{id:s.license_id}).then(lic=>setLicenseRow(lic||null)).catch(()=>{});
+    } else {
+      setLicenseRow(null);
+    }
 
     // ── ONE-TIME IMAGE MIGRATION ──
     // Compress any existing full-size PNG images already stored in the database
@@ -482,6 +490,11 @@ function LoginScreen({onLogin}){
     setLoading(true);setError("");setInfo("Checking...");
     const store=await supa.get("stores",{owner_email:email.trim().toLowerCase()});
     if(!store){setError("No account found with this email.");setLoading(false);setInfo("");return;}
+    // Block trial accounts from accessing the portal
+    if(store.license_id){
+      const lic=await supa.get("licenses",{id:store.license_id});
+      if(lic?.plan==="trial"){setError("Trial accounts can't access the portal. Please upgrade to a paid plan first.");setLoading(false);setInfo("");return;}
+    }
     const result=await sendPortalOTP(email.trim().toLowerCase(),store.store_name,"sign-in");
     setLoading(false);
     if(!result.ok){setError("Failed to send code. Try again.");setInfo("");return;}
@@ -568,9 +581,9 @@ function Dashboard({store,data,primary}){
     <div>
       {/* ── TRIAL BANNER ── */}
       {(()=>{
-        const lic = store?.license_code||"";
-        const exp = store?.trial_expires_at||data?.trial_expires_at||null;
-        if(!lic.startsWith("TRIAL")||!exp) return null;
+        // Use the license row fetched on load — more reliable than store.license_code
+        if(!licenseRow?.code?.startsWith("TRIAL")||!licenseRow?.trial_expires_at) return null;
+        const exp = licenseRow.trial_expires_at;
         const ms = new Date(exp)-new Date();
         const expired = ms<=0;
         const daysLeft = Math.max(0,Math.ceil(ms/(1000*60*60*24)));
@@ -587,7 +600,7 @@ function Dashboard({store,data,primary}){
         return(
           <div style={{background:urgent?"#fef2f2":"#fef3c7",border:`1px solid ${urgent?"#fecaca":"#fde68a"}`,borderRadius:12,padding:"14px 18px",marginBottom:16,display:"flex",alignItems:"center",gap:12}}>
             <i className={`ti ${urgent?"ti-alert-triangle":"ti-clock"}`} style={{fontSize:22,color:urgent?"#dc2626":"#d97706",flexShrink:0}}/>
-            <div>
+            <div style={{flex:1}}>
               <div style={{fontWeight:800,color:urgent?"#dc2626":"#92400e",fontSize:14}}>
                 {urgent?"Trial expires today!":"Free Trial Active"}
               </div>
