@@ -73,9 +73,21 @@ const compressImage = (file, maxSize=300, quality=0.7) => new Promise((resolve) 
 });
 
 const fmt        = (n) => `₱${Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-const todayKey   = () => new Date().toISOString().slice(0,10);
-const weekStart  = () => { const d=new Date(); d.setDate(d.getDate()-d.getDay()); return d.toISOString().slice(0,10); };
-const monthStart = () => new Date().toISOString().slice(0,7)+"-01";
+// Format a Date as YYYY-MM-DD using LOCAL time components, not UTC.
+// CRITICAL: .toISOString() always returns UTC — for PH (UTC+8), any
+// order placed between 12:00am-8:00am local time would get stamped
+// with the PREVIOUS day's date in the PWA, and this same bug here
+// would ALSO misfile it under "Today" filtering on the portal side.
+// Both apps need this fix for "Today" to actually mean today.
+const toLocalDateKey = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+};
+const todayKey   = () => toLocalDateKey(new Date());
+const weekStart  = () => { const d=new Date(); d.setDate(d.getDate()-d.getDay()); return toLocalDateKey(d); };
+const monthStart = () => { const d=new Date(); return toLocalDateKey(new Date(d.getFullYear(),d.getMonth(),1)); };
 const uid        = () => Math.random().toString(36).slice(2,10);
 
 const SESSION_KEY = "portal_session";
@@ -702,9 +714,9 @@ function PortalShiftsTab({shifts,fmt,primary}){
   const [shiftTo,setShiftTo]=useState("");
   const [shiftCashier,setShiftCashier]=useState("all");
   const now=new Date();
-  const todayStr=now.toISOString().slice(0,10);
-  const weekStartStr=new Date(now.getFullYear(),now.getMonth(),now.getDate()-now.getDay()).toISOString().slice(0,10);
-  const monthStartStr=new Date(now.getFullYear(),now.getMonth(),1).toISOString().slice(0,10);
+  const todayStr=toLocalDateKey(now);
+  const weekStartStr=toLocalDateKey(new Date(now.getFullYear(),now.getMonth(),now.getDate()-now.getDay()));
+  const monthStartStr=toLocalDateKey(new Date(now.getFullYear(),now.getMonth(),1));
   const cashierList=[...new Set(shifts.map(s=>s.cashier).filter(Boolean))].sort();
   const filteredShifts=shifts.filter(s=>{
     const d=(s.startDateKey||s.startTime||"").slice(0,10);
@@ -973,7 +985,7 @@ function Inventory({store,data,session,saveField,primary}){
     try{
       const fresh=await supa.get("store_data",{store_id:session?.storeId});
       const existing=fresh?.logs||data?.logs||[];
-      const entry={id:"log-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,6),type,action,detail,actor:store?.owner_name||"Owner",actorRole:"role_owner",device:"portal",ts:new Date().toISOString(),dateKey:new Date().toISOString().slice(0,10)};
+      const entry={id:"log-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,6),type,action,detail,actor:store?.owner_name||"Owner",actorRole:"role_owner",device:"portal",ts:new Date().toISOString(),dateKey:toLocalDateKey(new Date())};
       const SIX_MONTHS_AGO=new Date(Date.now()-180*24*60*60*1000).toISOString();
       const updated=[entry,...existing.filter(l=>l.ts>SIX_MONTHS_AGO)].slice(0,5000);
       await saveField("logs",updated);
