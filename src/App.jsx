@@ -79,6 +79,11 @@ const fmt        = (n) => `₱${Number(n||0).toLocaleString("en-PH",{minimumFrac
 // with the PREVIOUS day's date in the PWA, and this same bug here
 // would ALSO misfile it under "Today" filtering on the portal side.
 // Both apps need this fix for "Today" to actually mean today.
+// NOTE FOR THE FUTURE — read this before adding stores outside the
+// Philippines. See the matching comment in the PWA's App.jsx for the
+// full explanation; short version: this assumes whoever's viewing the
+// portal is in PH time (the device's own clock/timezone), which holds
+// today but would need a per-store timezone setting if that changes.
 const toLocalDateKey = (d) => {
   const y = d.getFullYear();
   const m = String(d.getMonth()+1).padStart(2,"0");
