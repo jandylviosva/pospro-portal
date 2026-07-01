@@ -929,20 +929,15 @@ function Reports({store,data,primary}){
   );
 }
 // ════════════ INVENTORY ════════════
-function Inventory({store,data,session,saveField,primary}){
+function Inventory({store,data,session,primary}){
   const products=data?.products||[];
   const categories=data?.categories||[];
-  const skuSettings=data?.sku_settings||{prefix:"SW",suffix:"",counter:0};
   const [search,setSearch]=useState("");
   const [catFilter,setCat]=useState("All");
-  // Portal inventory is read-only — no write state
-
-  const imgRef=useRef(null);
-
-  const genNextSKU=()=>{
-    const counter=(skuSettings.counter||0)+1;
-    return `${(skuSettings.prefix||"SW").toUpperCase()}${String(counter).padStart(5,"0")}${(skuSettings.suffix||"").toUpperCase()}`;
-  };
+  const filtered=products.filter(p=>
+    (catFilter==="All"||p.category===catFilter)&&
+    (p.name.toLowerCase().includes(search.toLowerCase())||p.sku?.includes(search))
+  );
 
   return(
     <div>
