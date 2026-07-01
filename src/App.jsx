@@ -713,24 +713,8 @@ function Dashboard({store,data,primary,licenseRow}){
 // ════════════ REPORTS ════════════
 
 // ── PORTAL SHIFTS TAB ──
-function PortalShiftsTab({shifts,fmt,primary}){
-  const [shiftPeriod,setShiftPeriod]=useState("all");
-  const [shiftFrom,setShiftFrom]=useState("");
-  const [shiftTo,setShiftTo]=useState("");
-  const [shiftCashier,setShiftCashier]=useState("all");
-  const now=new Date();
-  const todayStr=toLocalDateKey(now);
-  const weekStartStr=toLocalDateKey(new Date(now.getFullYear(),now.getMonth(),now.getDate()-now.getDay()));
-  const monthStartStr=toLocalDateKey(new Date(now.getFullYear(),now.getMonth(),1));
+function PortalShiftsTab({shifts,filteredShifts,fmt,primary,shiftPeriod,setShiftPeriod,shiftFrom,setShiftFrom,shiftTo,setShiftTo,shiftCashier,setShiftCashier}){
   const cashierList=[...new Set(shifts.map(s=>s.cashier).filter(Boolean))].sort();
-  const filteredShifts=shifts.filter(s=>{
-    const d=(s.startDateKey||s.startTime||"").slice(0,10);
-    if(shiftPeriod==="today")  return d===todayStr;
-    if(shiftPeriod==="week")   return d>=weekStartStr;
-    if(shiftPeriod==="month")  return d>=monthStartStr;
-    if(shiftPeriod==="custom") return (!shiftFrom||d>=shiftFrom)&&(!shiftTo||d<=shiftTo);
-    return true;
-  }).filter(s=>shiftCashier==="all"||s.cashier===shiftCashier);
   const filteredSales=filteredShifts.reduce((s,x)=>s+(x.totalSales||0),0);
   const P=primary||"#4f46e5";
   return(
@@ -796,8 +780,25 @@ function Reports({store,data,primary}){
   const [from,setFrom]=useState("");const [to,setTo]=useState("");
   const [payFilter,setPayFilter]=useState("all");
   const [birMonth,setBirMonth]=useState(new Date().toISOString().slice(0,7));
+  // Shift filter state lifted here so doPrintShifts can use filteredShifts
+  const [shiftPeriod,setShiftPeriod]=useState("all");
+  const [shiftFrom,setShiftFrom]=useState("");
+  const [shiftTo,setShiftTo]=useState("");
+  const [shiftCashier,setShiftCashier]=useState("all");
   const allOrders=(data?.orders||[]).filter(o=>o.status==="paid");
   const shifts=data?.shifts||[];
+  const now=new Date();
+  const todayStr=toLocalDateKey(now);
+  const weekStartStr=toLocalDateKey(new Date(now.getFullYear(),now.getMonth(),now.getDate()-now.getDay()));
+  const monthStartStr=toLocalDateKey(new Date(now.getFullYear(),now.getMonth(),1));
+  const filteredShifts=shifts.filter(s=>{
+    const d=(s.startDateKey||s.startTime||"").slice(0,10);
+    if(shiftPeriod==="today")  return d===todayStr;
+    if(shiftPeriod==="week")   return d>=weekStartStr;
+    if(shiftPeriod==="month")  return d>=monthStartStr;
+    if(shiftPeriod==="custom") return(!shiftFrom||d>=shiftFrom)&&(!shiftTo||d<=shiftTo);
+    return true;
+  }).filter(s=>shiftCashier==="all"||s.cashier===shiftCashier);
   const inPeriod=o=>{
     if(period==="today")  return o.dateKey===todayKey();
     if(period==="week")   return o.dateKey>=weekStart();
@@ -831,13 +832,13 @@ function Reports({store,data,primary}){
     printReport(`<h1>Sales Report — ${periodLabel}${payFilter!=="all"?` · ${payFilter.toUpperCase()}`:""}</h1><p class="meta">Store: ${store?.store_name} | ${new Date().toLocaleString("en-PH")} | ${orders.length} orders</p><div class="summary"><div class="card"><div class="card-label">Total Sales</div><div class="card-val">${fmt(totalSales)}</div></div><div class="card"><div class="card-label">Orders</div><div class="card-val">${orders.length}</div></div><div class="card"><div class="card-label">Avg Order</div><div class="card-val">${fmt(avg)}</div></div></div>${payRows?`<h2>By Payment Method</h2><table><thead><tr><th>Method</th><th class="right">Total</th></tr></thead><tbody>${payRows}</tbody></table>`:""}${topProds.length?`<h2>Top Products</h2><table><thead><tr><th>Product</th><th class="right">Qty</th><th class="right">Revenue</th></tr></thead><tbody>${pRows}</tbody></table>`:""}${Object.keys(cashierS).length?`<h2>By Cashier</h2><table><thead><tr><th>Cashier</th><th class="right">Orders</th><th class="right">Revenue</th></tr></thead><tbody>${cRows}</tbody></table>`:""}${orders.length?`<h2>Orders</h2><table><thead><tr><th>Order ID</th><th>Date</th><th>Cashier</th><th>Payment</th><th class="right">Total</th></tr></thead><tbody>${oRows}</tbody></table>`:""}`,`Sales Report — ${store?.store_name}`);
   };
   const doPrintShifts=()=>{
-    const rows=shifts.map(s=>{
+    const rows=filteredShifts.map(s=>{
       const payRow=s.payBreakdown&&Object.keys(s.payBreakdown).length>0
         ?`<tr><td colspan="8" style="padding:2px 8px 6px;font-size:10px;color:#6b7280;border-bottom:1px solid #e5e7eb">Payments: ${Object.entries(s.payBreakdown).map(([m,a])=>`<span style="background:${m==="cash"?"#dcfce7":"#eff6ff"};color:${m==="cash"?"#166534":"#1e40af"};padding:1px 6px;border-radius:4px;font-weight:700;margin-right:4px">${m.charAt(0).toUpperCase()+m.slice(1)}: ${fmt(a)}</span>`).join("")}</td></tr>`
         :"";
       return `<tr><td>${s.cashier}</td><td style="font-size:10px">${s.startTime}<br/>${s.endTime}</td><td class="right">${s.shiftOrders}</td><td class="right">${fmt(s.openCash)}</td><td class="right">${fmt(s.totalSales)}</td><td class="right">${fmt(s.totalExpenses||0)}</td><td class="right">${fmt(s.closeCash)}</td><td class="right ${s.overShort>=0?"green":"red"}">${s.overShort>=0?"+":""}${fmt(s.overShort)}</td></tr>${payRow}`;
     }).join("");
-    printReport(`<h1>Shift Report</h1><p class="meta">Store: ${store?.store_name} | ${shifts.length} shifts</p><table><thead><tr><th>Cashier</th><th>Period</th><th class="right">Orders</th><th class="right">Opening</th><th class="right">Sales</th><th class="right">Expenses</th><th class="right">Closing</th><th class="right">Over/Short</th></tr></thead><tbody>${rows}</tbody></table>`,`Shift Report — ${store?.store_name}`);
+    printReport(`<h1>Shift Report</h1><p class="meta">Store: ${store?.store_name} | ${filteredShifts.length} shifts</p><table><thead><tr><th>Cashier</th><th>Period</th><th class="right">Orders</th><th class="right">Opening</th><th class="right">Sales</th><th class="right">Expenses</th><th class="right">Closing</th><th class="right">Over/Short</th></tr></thead><tbody>${rows}</tbody></table>`,`Shift Report — ${store?.store_name}`);
   };
   const doPrintBIR=()=>{
     printReport(`<h1>BIR Tax Reference — ${birMonth}</h1><p class="meta">Store: ${store?.store_name} | For reference only</p><table><thead><tr><th>Category</th><th class="right">Amount</th></tr></thead><tbody><tr><td>Gross Sales</td><td class="right bold">${fmt(birGross)}</td></tr><tr><td>VATable Sales</td><td class="right">${fmt(birVatable)}</td></tr><tr><td><b>Output VAT (12%)</b></td><td class="right bold" style="color:#4f46e5">${fmt(birVat)}</td></tr><tr><td>VAT-Exempt Sales</td><td class="right">${fmt(birExempt)}</td></tr><tr><td>Zero-Rated</td><td class="right">₱0.00</td></tr><tr><td>Total Orders</td><td class="right">${birOrders.length}</td></tr></tbody></table><div style="margin-top:14px;padding:10px 14px;background:#fef3c7;border-radius:8px;font-size:11px;color:#92400e">⚠️ For reference only. Consult your licensed accountant for official BIR filings.</div>`,`BIR Tax — ${store?.store_name}`);
@@ -908,7 +909,7 @@ function Reports({store,data,primary}){
           </Card>}
         </div>
       </>}
-      {tab==="shifts"&&<PortalShiftsTab shifts={shifts} fmt={fmt} primary={primary}/>}
+      {tab==="shifts"&&<PortalShiftsTab shifts={shifts} filteredShifts={filteredShifts} fmt={fmt} primary={primary} shiftPeriod={shiftPeriod} setShiftPeriod={setShiftPeriod} shiftFrom={shiftFrom} setShiftFrom={setShiftFrom} shiftTo={shiftTo} setShiftTo={setShiftTo} shiftCashier={shiftCashier} setShiftCashier={setShiftCashier}/>}
       {tab==="bir"&&(
         <div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:14}}>
@@ -1107,7 +1108,8 @@ function Inventory({store,data,session,saveField,primary}){
 
       {/* Product table */}
       <Card style={{padding:0,overflow:"hidden"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        <table style={{width:"100%",minWidth:580,borderCollapse:"collapse",fontSize:13}}>
           <thead>
             <tr style={{background:"#f9fafb"}}>
               {["Product","Category","Price","Stock","SKU","Status",""].map(h=>(
@@ -1155,6 +1157,7 @@ function Inventory({store,data,session,saveField,primary}){
             {filtered.length===0&&<tr><td colSpan={7} style={{padding:"40px",textAlign:"center",color:"#9ca3af"}}>No products found</td></tr>}
           </tbody>
         </table>
+        </div>
       </Card>
 
       {/* CSV Import Modal */}
@@ -1570,8 +1573,10 @@ function Settings({store,data,session,saveField,onRefresh,setStore}){
       const types = orderSettings.orderTypes||[];
       const BUILT_INS=[{id:"ot1",label:"Dine-in",enabled:false,locked:true},{id:"ot2",label:"Take-out",enabled:false,locked:true}];
       const hasOt1=types.some(t=>t.id==="ot1"), hasOt2=types.some(t=>t.id==="ot2");
-      if(!hasOt1||!hasOt2) return [...BUILT_INS.filter(bi=>!types.some(t=>t.id===bi.id)),...types.map(t=>(t.id==="ot1"||t.id==="ot2")?{...t,locked:true}:t)];
-      return types;
+      const merged = !hasOt1||!hasOt2
+        ? [...BUILT_INS.filter(bi=>!types.some(t=>t.id===bi.id)),...types.map(t=>(t.id==="ot1"||t.id==="ot2")?{...t,locked:true}:t)]
+        : types.map(t=>(t.id==="ot1"||t.id==="ot2")?{...t,locked:true}:t);
+      return merged;
     })(),
     orderSources:orderSettings.orderSources||[],
     orderNumPrefix: orderSettings.orderNumPrefix||"ORD",
