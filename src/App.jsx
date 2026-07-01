@@ -379,6 +379,7 @@ export default function App(){
   const PRIMARY=theme.primary||"#4f46e5";
   const SIDEBAR=theme.sidebar||"#1a1a2e";
   const BG=theme.bgColor||"#f0f0f8";
+  const isOwner=!session?.isDevView; // Dev view is read-only; real owner login gets edit rights
 
   const NAV=[
     {id:"dashboard",icon:"ti-layout-dashboard",label:"Dashboard"},
@@ -471,7 +472,7 @@ export default function App(){
       <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}}>
         {loading&&!data&&<div style={{textAlign:"center",padding:80,color:"#9ca3af"}}><i className="ti ti-loader-2" style={{fontSize:40,display:"block",marginBottom:10}}/>Loading store data…</div>}
         {data&&view==="dashboard"&&<Dashboard store={store} data={data} primary={PRIMARY} licenseRow={licenseRow}/>}
-        {data&&view==="reports"  &&<Reports   store={store} data={data} primary={PRIMARY}/>}
+        {data&&view==="reports"  &&<Reports   store={store} data={data} primary={PRIMARY} isOwner={isOwner} saveField={saveField}/>}
         {data&&view==="inventory"&&<Inventory store={store} data={data} session={session} saveField={saveField} primary={PRIMARY}/>}
         {data&&view==="orders"   &&<Orders    store={store} data={data} session={session} saveField={saveField}/>}
         {data&&view==="accounts" &&<Accounts  store={store} data={data} session={session} saveField={saveField}/>}
@@ -713,8 +714,22 @@ function Dashboard({store,data,primary,licenseRow}){
 // ════════════ REPORTS ════════════
 
 // ── PORTAL SHIFTS TAB ──
-function PortalShiftsTab({shifts,filteredShifts,fmt,primary,shiftPeriod,setShiftPeriod,shiftFrom,setShiftFrom,shiftTo,setShiftTo,shiftCashier,setShiftCashier}){
+function PortalShiftsTab({shifts,filteredShifts,fmt,primary,shiftPeriod,setShiftPeriod,shiftFrom,setShiftFrom,shiftTo,setShiftTo,shiftCashier,setShiftCashier,isOwner,onSaveShifts}){
   const cashierList=[...new Set(shifts.map(s=>s.cashier).filter(Boolean))].sort();
+  const [editShift,setEditShift]=useState(null);
+  const [editActual,setEditActual]=useState("");
+  const [editExpenses,setEditExpenses]=useState([]);
+  const [editNotes,setEditNotes]=useState("");
+  const openEdit=(s)=>{setEditShift(s);setEditActual(String(s.closeCash||0));setEditExpenses(s.expenses?.length?[...s.expenses]:[{name:"",amount:""}]);setEditNotes(s.notes||"");};
+  const savePartialEdit=()=>{
+    const actual=parseFloat(editActual)||0;
+    const expenses=editExpenses.filter(e=>e.name&&parseFloat(e.amount)>0);
+    const totalExp=expenses.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+    const expected=(parseFloat(editShift.openCash)||0)+(editShift.cashSales||0);
+    const updated={...editShift,closeCash:actual,actualCash:actual,expenses,totalExpenses:totalExp,overShort:actual-expected-totalExp,notes:editNotes,editLocked:true};
+    if(onSaveShifts) onSaveShifts(updated);
+    setEditShift(null);
+  };
   const filteredSales=filteredShifts.reduce((s,x)=>s+(x.totalSales||0),0);
   const P=primary||"#4f46e5";
   return(
@@ -740,13 +755,30 @@ function PortalShiftsTab({shifts,filteredShifts,fmt,primary,shiftPeriod,setShift
       </div>
       {filteredShifts.length===0&&<Card><div style={{textAlign:"center",color:"#9ca3af",padding:"24px 0",fontSize:13}}>{shifts.length===0?"No completed shifts yet":"No shifts in selected period"}</div></Card>}
       {filteredShifts.map(s=>(
-        <Card key={s.id}>
+        <Card key={s.id} style={{border:s.status==="partial"?"1px solid #fcd34d":undefined}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,flexWrap:"wrap",gap:6}}>
-            <div><div style={{fontWeight:800,fontSize:13}}>{s.cashier}</div><div style={{fontSize:11,color:"#9ca3af"}}>{s.startTime} → {s.endTime}</div></div>
-            <span style={{fontSize:13,fontWeight:800,padding:"3px 10px",borderRadius:10,background:s.overShort>=0?"#f0fdf4":"#fef2f2",color:s.overShort>=0?"#166534":"#991b1b"}}>{s.overShort>=0?"+":""}{fmt(s.overShort)}</span>
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                <div style={{fontWeight:800,fontSize:13}}>{s.cashier}</div>
+                {s.status==="partial"&&<span style={{fontSize:10,fontWeight:800,padding:"1px 7px",borderRadius:8,background:"#fef3c7",color:"#92400e"}}>PARTIAL</span>}
+                {s.closedReason==="auto_24h"&&<span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:8,background:"#f3f4f6",color:"#6b7280"}}>AUTO-ENDED</span>}
+              </div>
+              <div style={{fontSize:11,color:"#9ca3af"}}>{s.startTime} → {s.endTime}</div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              {s.status==="partial"&&!s.editLocked&&isOwner&&(
+                <button onClick={()=>openEdit(s)} style={{padding:"3px 10px",background:"#fef3c7",border:"1px solid #fcd34d",borderRadius:7,cursor:"pointer",fontSize:11,fontWeight:700,color:"#92400e"}}>
+                  <i className="ti ti-pencil" style={{fontSize:10,marginRight:3}}/>Edit
+                </button>
+              )}
+              {s.status==="partial"&&s.editLocked&&<span style={{fontSize:10,color:"#9ca3af",fontStyle:"italic"}}>✓ Finalized</span>}
+              {(s.status!=="partial"||(s.status==="partial"&&s.editLocked))&&(
+                <span style={{fontSize:13,fontWeight:800,padding:"3px 10px",borderRadius:10,background:s.overShort>=0?"#f0fdf4":"#fef2f2",color:s.overShort>=0?"#166534":"#991b1b"}}>{s.overShort>=0?"+":""}{fmt(s.overShort)}</span>
+              )}
+            </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(90px,1fr))",gap:7,marginBottom:s.payBreakdown&&Object.keys(s.payBreakdown).length>0?8:0}}>
-            {[{l:"Sales",v:fmt(s.totalSales)},{l:"Opening",v:fmt(s.openCash)},{l:"Closing",v:fmt(s.closeCash)},{l:"Expenses",v:fmt(s.totalExpenses||0)},{l:"Orders",v:s.shiftOrders}].map(m=>(
+            {[{l:"Sales",v:fmt(s.totalSales)},{l:"Opening",v:fmt(s.openCash)},{l:"Closing",v:s.status==="partial"&&!s.editLocked?"—":fmt(s.closeCash)},{l:"Expenses",v:fmt(s.totalExpenses||0)},{l:"Orders",v:s.shiftOrders}].map(m=>(
               <div key={m.l} style={{background:"#f9fafb",borderRadius:8,padding:"6px 10px"}}><div style={{fontSize:10,color:"#9ca3af"}}>{m.l}</div><div style={{fontSize:13,fontWeight:800}}>{m.v}</div></div>
             ))}
           </div>
@@ -768,13 +800,58 @@ function PortalShiftsTab({shifts,filteredShifts,fmt,primary,shiftPeriod,setShift
               ))}
             </div>
           )}
+          {s.notes&&<div style={{marginTop:8,fontSize:12,color:"#6b7280",fontStyle:"italic"}}>Note: {s.notes}</div>}
+          {s.status==="partial"&&!s.editLocked&&isOwner&&(
+            <div style={{marginTop:8,padding:"7px 10px",background:"#fffbeb",border:"1px dashed #fcd34d",borderRadius:7,fontSize:11,color:"#92400e"}}>
+              ⚠ Partial shift — closing cash not yet recorded. Tap Edit to finalize.
+            </div>
+          )}
         </Card>
       ))}
+      {/* Partial Shift Edit Modal */}
+      {editShift&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}}>
+          <div style={{background:"#fff",borderRadius:16,padding:24,width:"100%",maxWidth:400,maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:800,fontSize:15,marginBottom:4}}>Edit Partial Shift</div>
+            <div style={{fontSize:12,color:"#6b7280",marginBottom:14}}>One-time edit for <b>{editShift.cashier}</b>'s partial shift. Locked after saving.</div>
+            <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14,background:"#f9fafb",borderRadius:8,padding:"10px 12px"}}>
+              {[{l:"Cashier",v:editShift.cashier},{l:"Started",v:editShift.startTime},{l:"Orders",v:editShift.shiftOrders},{l:"Sales",v:fmt(editShift.totalSales)},{l:"Opening Cash",v:fmt(editShift.openCash)}].map(r=>(
+                <div key={r.l} style={{display:"flex",justifyContent:"space-between",fontSize:12}}><span style={{color:"#9ca3af"}}>{r.l}</span><span style={{fontWeight:700}}>{r.v}</span></div>
+              ))}
+            </div>
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:11,fontWeight:800,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:5}}>Actual Cash in Drawer (₱)</label>
+              <input type="number" value={editActual} onChange={e=>setEditActual(e.target.value)}
+                style={{width:"100%",padding:"10px 12px",border:"1px solid #e5e7eb",borderRadius:8,fontSize:16,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:11,fontWeight:800,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:5}}>Expenses</label>
+              {editExpenses.map((e,i)=>(
+                <div key={i} style={{display:"flex",gap:6,marginBottom:6}}>
+                  <input value={e.name} onChange={ev=>{const ex=[...editExpenses];ex[i]={...ex[i],name:ev.target.value};setEditExpenses(ex);}} placeholder="Description" style={{flex:2,padding:"7px 10px",border:"1px solid #e5e7eb",borderRadius:7,fontSize:12,outline:"none"}}/>
+                  <input type="number" value={e.amount} onChange={ev=>{const ex=[...editExpenses];ex[i]={...ex[i],amount:ev.target.value};setEditExpenses(ex);}} placeholder="₱0" style={{flex:1,padding:"7px 10px",border:"1px solid #e5e7eb",borderRadius:7,fontSize:12,outline:"none"}}/>
+                  <button onClick={()=>setEditExpenses(editExpenses.filter((_,j)=>j!==i))} style={{padding:"4px 8px",border:"1px solid #fecaca",borderRadius:7,cursor:"pointer",background:"#fef2f2",color:"#dc2626",fontSize:12}}>✕</button>
+                </div>
+              ))}
+              <button onClick={()=>setEditExpenses([...editExpenses,{name:"",amount:""}])} style={{fontSize:12,color:"#4f46e5",background:"none",border:"none",cursor:"pointer",fontWeight:700}}>+ Add expense</button>
+            </div>
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:11,fontWeight:800,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:5}}>Notes (optional)</label>
+              <textarea value={editNotes} onChange={e=>setEditNotes(e.target.value)} placeholder="Any notes about this shift..." rows={2}
+                style={{width:"100%",padding:"8px 12px",border:"1px solid #e5e7eb",borderRadius:8,fontSize:12,outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setEditShift(null)} style={{flex:1,padding:"10px 0",border:"1px solid #e5e7eb",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:700}}>Cancel</button>
+              <button onClick={savePartialEdit} style={{flex:2,padding:"10px 0",background:"#d97706",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:800}}>Save & Lock</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function Reports({store,data,primary}){
+function Reports({store,data,primary,isOwner,saveField}){
   const [period,setPeriod]=useState("today");
   const [tab,setTab]=useState("sales");
   const [from,setFrom]=useState("");const [to,setTo]=useState("");
@@ -909,7 +986,12 @@ function Reports({store,data,primary}){
           </Card>}
         </div>
       </>}
-      {tab==="shifts"&&<PortalShiftsTab shifts={shifts} filteredShifts={filteredShifts} fmt={fmt} primary={primary} shiftPeriod={shiftPeriod} setShiftPeriod={setShiftPeriod} shiftFrom={shiftFrom} setShiftFrom={setShiftFrom} shiftTo={shiftTo} setShiftTo={setShiftTo} shiftCashier={shiftCashier} setShiftCashier={setShiftCashier}/>}
+      {tab==="shifts"&&
+              <PortalShiftsTab shifts={shifts} filteredShifts={filteredShifts} fmt={fmt} primary={primary} shiftPeriod={shiftPeriod} setShiftPeriod={setShiftPeriod} shiftFrom={shiftFrom} setShiftFrom={setShiftFrom} shiftTo={shiftTo} setShiftTo={setShiftTo} shiftCashier={shiftCashier} setShiftCashier={setShiftCashier} isOwner={isOwner} onSaveShifts={(updated)=>{
+                const allShifts=data?.shifts||[];
+                const newShifts=[updated,...allShifts.filter(s=>s.id!==updated.id)];
+                saveField("shifts",newShifts);
+              }}/>}
       {tab==="bir"&&(
         <div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:14}}>
