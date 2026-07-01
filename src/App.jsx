@@ -720,15 +720,18 @@ function PortalShiftsTab({shifts,filteredShifts,fmt,primary,shiftPeriod,setShift
   const [editActual,setEditActual]=useState("");
   const [editExpenses,setEditExpenses]=useState([]);
   const [editNotes,setEditNotes]=useState("");
+  const [saveToast,setSaveToast]=useState(false);
   const openEdit=(s)=>{setEditShift(s);setEditActual(String(s.closeCash||0));setEditExpenses(s.expenses?.length?[...s.expenses]:[{name:"",amount:""}]);setEditNotes(s.notes||"");};
   const savePartialEdit=()=>{
     const actual=parseFloat(editActual)||0;
     const expenses=editExpenses.filter(e=>e.name&&parseFloat(e.amount)>0);
     const totalExp=expenses.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
     const expected=(parseFloat(editShift.openCash)||0)+(editShift.cashSales||0);
-    const updated={...editShift,closeCash:actual,actualCash:actual,expenses,totalExpenses:totalExp,overShort:actual-expected-totalExp,notes:editNotes,editLocked:true};
+    const updated={...editShift,closeCash:actual,actualCash:actual,expenses,totalExpenses:totalExp,overShort:actual-expected-totalExp,notes:editNotes,editLocked:true,status:"closed"};
     if(onSaveShifts) onSaveShifts(updated);
     setEditShift(null);
+    setSaveToast(true);
+    setTimeout(()=>setSaveToast(false),2500);
   };
   const filteredSales=filteredShifts.reduce((s,x)=>s+(x.totalSales||0),0);
   const P=primary||"#4f46e5";
@@ -755,12 +758,12 @@ function PortalShiftsTab({shifts,filteredShifts,fmt,primary,shiftPeriod,setShift
       </div>
       {filteredShifts.length===0&&<Card><div style={{textAlign:"center",color:"#9ca3af",padding:"24px 0",fontSize:13}}>{shifts.length===0?"No completed shifts yet":"No shifts in selected period"}</div></Card>}
       {filteredShifts.map(s=>(
-        <Card key={s.id} style={{border:s.status==="partial"?"1px solid #fcd34d":undefined}}>
+        <Card key={s.id} style={{border:s.status==="partial"&&!s.editLocked?"1px solid #fcd34d":undefined}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,flexWrap:"wrap",gap:6}}>
             <div>
               <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                 <div style={{fontWeight:800,fontSize:13}}>{s.cashier}</div>
-                {s.status==="partial"&&<span style={{fontSize:10,fontWeight:800,padding:"1px 7px",borderRadius:8,background:"#fef3c7",color:"#92400e"}}>PARTIAL</span>}
+                {s.status==="partial"&&!s.editLocked&&<span style={{fontSize:10,fontWeight:800,padding:"1px 7px",borderRadius:8,background:"#fef3c7",color:"#92400e"}}>PARTIAL</span>}
                 {s.closedReason==="auto_24h"&&<span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:8,background:"#f3f4f6",color:"#6b7280"}}>AUTO-ENDED</span>}
               </div>
               <div style={{fontSize:11,color:"#9ca3af"}}>{s.startTime} → {s.endTime}</div>
@@ -772,7 +775,7 @@ function PortalShiftsTab({shifts,filteredShifts,fmt,primary,shiftPeriod,setShift
                 </button>
               )}
               {s.status==="partial"&&s.editLocked&&<span style={{fontSize:10,color:"#9ca3af",fontStyle:"italic"}}>✓ Finalized</span>}
-              {(s.status!=="partial"||(s.status==="partial"&&s.editLocked))&&(
+              {(s.status!=="partial"||s.editLocked)&&(
                 <span style={{fontSize:13,fontWeight:800,padding:"3px 10px",borderRadius:10,background:s.overShort>=0?"#f0fdf4":"#fef2f2",color:s.overShort>=0?"#166534":"#991b1b"}}>{s.overShort>=0?"+":""}{fmt(s.overShort)}</span>
               )}
             </div>
@@ -808,6 +811,11 @@ function PortalShiftsTab({shifts,filteredShifts,fmt,primary,shiftPeriod,setShift
           )}
         </Card>
       ))}
+      {saveToast&&(
+        <div style={{position:"fixed",top:24,left:"50%",transform:"translateX(-50%)",zIndex:400,background:"#15803d",color:"#fff",padding:"10px 22px",borderRadius:10,fontSize:13,fontWeight:700,boxShadow:"0 4px 16px rgba(0,0,0,0.2)",pointerEvents:"none"}}>
+          ✓ Shift finalized and saved
+        </div>
+      )}
       {/* Partial Shift Edit Modal */}
       {editShift&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:16}}>
@@ -875,7 +883,7 @@ function Reports({store,data,primary,isOwner,saveField}){
     if(shiftPeriod==="month")  return d>=monthStartStr;
     if(shiftPeriod==="custom") return(!shiftFrom||d>=shiftFrom)&&(!shiftTo||d<=shiftTo);
     return true;
-  }).filter(s=>shiftCashier==="all"||s.cashier===shiftCashier);
+  }).filter(s=>shiftCashier==="all"||s.cashier===shiftCashier).sort((a,b)=>new Date(b.startTime)-new Date(a.startTime));
   const inPeriod=o=>{
     if(period==="today")  return o.dateKey===todayKey();
     if(period==="week")   return o.dateKey>=weekStart();
