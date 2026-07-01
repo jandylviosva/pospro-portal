@@ -74,20 +74,11 @@ export default async function handler(req, res) {
           </div>`,
         }),
       });
-      // Use text() first then try to parse as JSON — avoids r.json() throwing
-      // on non-JSON Resend responses (plain text errors, timeouts, 502s etc)
-      // which was causing a silent 500 with no diagnostic info.
-      const rawText = await r.text();
-      let data = {};
-      try { data = JSON.parse(rawText); } catch { data = { raw: rawText }; }
-      if (!r.ok) {
-        console.error("Resend report email error:", r.status, JSON.stringify(data));
-        return res.status(500).json({ error: "Failed to send report", resendStatus: r.status, detail: data });
-      }
+      const data = await r.json();
+      if (!r.ok) return res.status(500).json({ error: "Failed to send report", detail: data });
       return res.status(200).json({ ok: true });
     } catch(e) {
-      console.error("Report email fetch error:", e.message);
-      return res.status(500).json({ error: "Server error", detail: e.message });
+      return res.status(500).json({ error: "Server error" });
     }
   }
 
