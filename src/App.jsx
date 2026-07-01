@@ -338,7 +338,7 @@ export default function App(){
   useEffect(()=>{
     if(session?.storeId){
       loadData(session.storeId);
-      refreshRef.current=setInterval(()=>loadData(session.storeId),60000);
+      refreshRef.current=setInterval(()=>loadData(session.storeId),15000);
     }
     return()=>clearInterval(refreshRef.current);
   },[session,loadData]);
