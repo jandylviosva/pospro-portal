@@ -17,7 +17,7 @@ const supa = {
   // portal never reads owner_password at all). Omitting `select` falls
   // back to `*` for tables that don't carry sensitive columns.
   async get(table,match,select){
-    try{const q=Object.entries(match).map(([k,v])=>`${k}=eq.${encodeURIComponent(v)}`).join("&");const sel=select?`&select=${encodeURIComponent(select)}`:"";const r=await fetch(`${SUPA_URL}/rest/v1/${table}?${q}${sel}&limit=1`,{headers:H});const d=await r.json();return d[0]||null;}catch{return null;}
+    try{const q=Object.entries(match).map(([k,v])=>`${k}=eq.${encodeURIComponent(v)}`).join("&");const sel=select?`&select=${encodeURIComponent(select)}`:"";const r=await fetch(`${SUPA_URL}/rest/v1/${table}?${q}${sel}&limit=1`,{headers:H});if(!r.ok){console.error(`[supa.get] ${table} query failed (${r.status}):`,await r.text().catch(()=>""));return null;}const d=await r.json();return d[0]||null;}catch{return null;}
   },
   async update(table,match,data){
     try{const q=Object.entries(match).map(([k,v])=>`${k}=eq.${encodeURIComponent(v)}`).join("&");const r=await fetch(`${SUPA_URL}/rest/v1/${table}?${q}`,{method:"PATCH",headers:{...H,"Prefer":"return=representation"},body:JSON.stringify(data)});return r.ok;}catch{return false;}
@@ -291,7 +291,7 @@ export default function App(){
   const loadData=useCallback(async(storeId)=>{
     setLoading(true);
     const [s,d]=await Promise.all([
-      supa.get("stores",{id:storeId},"id,owner_email,owner_name,owner_username,store_name,devices,max_devices,license_id,plan,active,created_at,last_seen_at,trial_expires_at"),
+      supa.get("stores",{id:storeId},"id,owner_email,owner_name,owner_username,store_name,devices,max_devices,license_id,plan,created_at,last_seen_at"),
       supa.get("store_data",{store_id:storeId}),
     ]);
     setStore(s);
@@ -513,7 +513,7 @@ function LoginScreen({onLogin}){
   const sendOTP=async()=>{
     if(!email.trim()||!/\S+@\S+\.\S+/.test(email)){setError("Enter a valid email address");return;}
     setLoading(true);setError("");setInfo("Checking...");
-    const store=await supa.get("stores",{owner_email:email.trim().toLowerCase()},"id,owner_email,owner_name,owner_username,store_name,devices,max_devices,license_id,plan,active,created_at,last_seen_at,trial_expires_at");
+    const store=await supa.get("stores",{owner_email:email.trim().toLowerCase()},"id,owner_email,owner_name,owner_username,store_name,devices,max_devices,license_id,plan,created_at,last_seen_at");
     if(!store){setError("No account found with this email.");setLoading(false);setInfo("");return;}
     // Block trial accounts from accessing the portal
     if(store.license_id){
@@ -532,7 +532,7 @@ function LoginScreen({onLogin}){
     setLoading(true);setError("");
     const valid=await verifyPortalOTP(email.trim().toLowerCase(),otp.trim());
     if(!valid){setError("Invalid or expired code.");setLoading(false);return;}
-    const store=await supa.get("stores",{owner_email:email.trim().toLowerCase()},"id,owner_email,owner_name,owner_username,store_name,devices,max_devices,license_id,plan,active,created_at,last_seen_at,trial_expires_at");
+    const store=await supa.get("stores",{owner_email:email.trim().toLowerCase()},"id,owner_email,owner_name,owner_username,store_name,devices,max_devices,license_id,plan,created_at,last_seen_at");
     if(!store){setError("Store not found.");setLoading(false);return;}
     clearInterval(timerRef.current);
     onLogin({storeId:store.id,email:store.owner_email,storeName:store.store_name,ownerName:store.owner_name});
