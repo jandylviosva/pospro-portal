@@ -141,19 +141,32 @@ export default async function handler(req, res) {
       await sendResendEmail(RESEND_KEY, {
         to: OWNER_NOTIFY_EMAIL,
         subject: `New payment submission — ${storeName} (${fmtPeso(amount)})`,
-        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px">
-          <h2 style="color:#111">New payment submission</h2>
-          <p style="color:#374151;font-size:14px;line-height:1.6">
-            <b>${customerName}</b> (${customerEmail}) submitted a payment for <b>${storeName}</b>.
-          </p>
-          <div style="background:#f5f3ff;border-radius:10px;padding:16px;margin:16px 0">
-            <div style="font-size:13px;color:#6b7280;margin-bottom:8px">Breakdown</div>
-            ${(breakdown || []).map(i => `<div style="display:flex;justify-content:space-between;font-size:13px;color:#374151;padding:2px 0"><span>${i.label}</span><span>${fmtPeso(i.amount)}</span></div>`).join("")}
-            <div style="display:flex;justify-content:space-between;font-weight:800;font-size:15px;color:#111;padding-top:8px;margin-top:8px;border-top:1px solid #ddd6fe">
-              <span>Total</span><span>${fmtPeso(amount)}</span>
-            </div>
+        // Table-based layout for the breakdown, not flexbox — most email
+        // clients (Outlook especially, but plenty of others too) either
+        // ignore or badly mis-render CSS flexbox in HTML email, which is
+        // exactly why the amounts showed up with no spacing/alignment at
+        // all instead of neatly right-aligned. Tables are the old-school
+        // but genuinely reliable way to lay out HTML email.
+        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f9fafb">
+          <div style="background:#4f46e5;border-radius:12px;padding:20px;text-align:center;margin-bottom:24px">
+            <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-.02em">POS Pro</div>
           </div>
-          <p style="color:#6b7280;font-size:13px">Review and confirm this in the Dev Console → Payments.</p>
+          <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb">
+            <h2 style="color:#111;margin:0 0 12px;font-size:19px">New payment submission</h2>
+            <p style="color:#374151;font-size:14px;line-height:1.6;margin:0 0 20px">
+              <b>${customerName}</b> (<a href="mailto:${customerEmail}" style="color:#4f46e5;text-decoration:none">${customerEmail}</a>) submitted a payment for <b>${storeName}</b>.
+            </p>
+            <div style="background:#f5f3ff;border:1px solid #e0e7ff;border-radius:10px;padding:18px">
+              <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Breakdown</div>
+              <table style="width:100%;border-collapse:collapse">
+                ${(breakdown || []).map(i => `<tr><td style="padding:5px 0;font-size:14px;color:#374151">${i.label}</td><td style="padding:5px 0;font-size:14px;color:#374151;text-align:right;white-space:nowrap">${fmtPeso(i.amount)}</td></tr>`).join("")}
+                <tr><td colspan="2" style="border-top:1px solid #ddd6fe;padding-top:10px;line-height:1px">&nbsp;</td></tr>
+                <tr><td style="font-weight:800;font-size:16px;color:#111">Total</td><td style="font-weight:800;font-size:16px;color:#4f46e5;text-align:right;white-space:nowrap">${fmtPeso(amount)}</td></tr>
+              </table>
+            </div>
+            <p style="color:#6b7280;font-size:13px;margin:20px 0 0">Review and confirm this in the Dev Console → Payments.</p>
+          </div>
+          <p style="color:#9ca3af;font-size:11px;text-align:center;margin-top:20px">This is an automatic notification from your POS Pro payment page.</p>
         </div>`,
       });
     } catch { /* notification failure is non-fatal */ }
