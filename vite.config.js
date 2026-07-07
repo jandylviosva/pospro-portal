@@ -8,6 +8,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         payment: resolve(__dirname, 'payment.html'),
+        billPayment: resolve(__dirname, 'bill-payment.html'),
       },
     },
   },
