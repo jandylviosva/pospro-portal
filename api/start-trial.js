@@ -167,6 +167,9 @@ export default async function handler(req, res) {
           ✅ Full access for 3 days — no payment required to start.<br/>
           To continue after the trial, contact us to get a permanent activation code.
         </div>
+        <div style="margin-top:12px;padding:12px 14px;background:#fef3c7;border-radius:8px;font-size:12px;color:#92400e;line-height:1.6">
+          💡 <b>Your trial includes everything</b> — Open Bills, Purchase Orders, Invoices, and Kitchen Order Ticket are all unlocked so you can try the complete system. These four are available as paid add-ons after your trial ends; everything else on the Standard plan stays included.
+        </div>
         <p style="color:#9ca3af;font-size:11px;margin-top:20px">
           If you didn't request this trial, you can safely ignore this email.
         </p>
