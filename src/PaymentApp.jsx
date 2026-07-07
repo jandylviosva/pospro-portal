@@ -47,19 +47,28 @@ function StepDots({ step }) {
   const steps = ["Plan", "Add-ons", "Review", "Payment"];
   const idx = { plan: 0, addons: 1, review: 2, details: 3, done: 3 }[step];
   return (
-    <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 28, flexWrap: "wrap" }}>
-      {steps.map((label, i) => (
-        <div key={label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{
-            width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 12, fontWeight: 800, color: i <= idx ? "#fff" : "#9ca3af",
-            background: i <= idx ? "#4f46e5" : "#e5e7eb",
-          }}>{i < idx ? "✓" : i + 1}</div>
-          <span style={{ fontSize: 12, fontWeight: 700, color: i <= idx ? "#111" : "#9ca3af" }}>{label}</span>
-          {i < steps.length - 1 && <div style={{ width: 24, height: 2, background: i < idx ? "#4f46e5" : "#e5e7eb", marginLeft: 4 }} />}
-        </div>
-      ))}
-    </div>
+    <>
+      <style>{`
+        @media (max-width: 480px) {
+          .step-label { display: none; }
+          .step-connector { width: 14px !important; }
+          .step-dots-row { gap: 4px !important; }
+        }
+      `}</style>
+      <div className="step-dots-row" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 28, flexWrap: "nowrap" }}>
+        {steps.map((label, i) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <div style={{
+              width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12, fontWeight: 800, color: i <= idx ? "#fff" : "#9ca3af", flexShrink: 0,
+              background: i <= idx ? "#4f46e5" : "#e5e7eb",
+            }}>{i < idx ? "✓" : i + 1}</div>
+            <span className="step-label" style={{ fontSize: 12, fontWeight: 700, color: i <= idx ? "#111" : "#9ca3af", whiteSpace: "nowrap" }}>{label}</span>
+            {i < steps.length - 1 && <div className="step-connector" style={{ width: 24, height: 2, background: i < idx ? "#4f46e5" : "#e5e7eb", marginLeft: 4, flexShrink: 0 }} />}
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -144,11 +153,11 @@ export default function PaymentApp() {
   });
 
   return (
-    <div style={{ minHeight: "100vh", fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding: "40px 16px" }}>
+    <div style={{ minHeight: "100vh", boxSizing: "border-box", fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding: "40px 16px" }}>
       <div style={{ maxWidth: 640, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 30 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 14, background: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
-            <i className="ti ti-device-desktop-cog" style={{ fontSize: 28, color: "#fff" }} />
+          <div style={{ width: 56, height: 56, borderRadius: 14, overflow: "hidden", margin: "0 auto 12px" }}>
+            <img src="/icons/icon-192.png" alt="POS Pro" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           </div>
           <div style={{ fontSize: 22, fontWeight: 800, color: "#111" }}>POS Pro</div>
         </div>
