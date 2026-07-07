@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // ── PRICING ──
 // Base plan price is per-month for "monthly", one-time for "lifetime".
@@ -68,6 +68,14 @@ export default function PaymentApp() {
   const initialPlan = params.get("plan") === "lifetime" ? "lifetime" : "monthly";
 
   const [step, setStep] = useState("plan");
+  const LANDING_PAGE_URL = "https://www.pospro-portal.com";
+  const [redirectIn, setRedirectIn] = useState(10);
+  useEffect(() => {
+    if (step !== "done") return;
+    if (redirectIn <= 0) { window.location.href = LANDING_PAGE_URL; return; }
+    const t = setTimeout(() => setRedirectIn(s => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [step, redirectIn]);
   const [plan, setPlan] = useState(initialPlan);
   const [addons, setAddons] = useState({ devices: 0, invoice: false, po: false, kitchen: false, openBills: false });
 
@@ -295,6 +303,10 @@ export default function PaymentApp() {
               <p style={{ color: "#6b7280", fontSize: 14, lineHeight: 1.6 }}>
                 We've received your submission. Once we confirm your payment, you'll get an email with your activation code — usually within a few hours.
               </p>
+              <button onClick={() => window.location.href = LANDING_PAGE_URL} style={{ marginTop: 20, padding: "12px 28px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+                Return to Homepage
+              </button>
+              <p style={{ color: "#9ca3af", fontSize: 12, marginTop: 14 }}>Redirecting automatically in {redirectIn}s…</p>
             </div>
           )}
         </div>
