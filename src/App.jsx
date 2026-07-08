@@ -1106,7 +1106,7 @@ function Inventory({store,data,session,primary}){
           <table style={{width:"100%",minWidth:580,borderCollapse:"collapse",fontSize:13}}>
             <thead>
               <tr style={{background:"#f9fafb"}}>
-                {["Product","Category","Price","Stock","SKU","Status"].map(h=>(
+                {["Product","Category","Retail Price","Cost Price","Stock","SKU","Status"].map(h=>(
                   <th key={h} style={{padding:"9px 12px",textAlign:"left",fontWeight:700,fontSize:11,color:"#6b7280",borderBottom:"1px solid #e5e7eb"}}>{h}</th>
                 ))}
               </tr>
@@ -1117,11 +1117,14 @@ function Inventory({store,data,session,primary}){
                 const isOpen = !!expanded[p.id];
                 const unit = p.stockUnit&&p.stockUnit!=="pcs" ? p.stockUnit : null;
 
-                let priceCell, stockCell;
+                let priceCell, stockCell, costCell;
                 if(p.hasVariants){
                   const prices=(p.variants||[]).map(v=>v.price||0);
                   const minP=prices.length?Math.min(...prices):0, maxP=prices.length?Math.max(...prices):0;
                   priceCell = minP===maxP?fmt(minP):`${fmt(minP)}–${fmt(maxP)}`;
+                  // Cost isn't tracked per-variant yet (see the Profits tab's
+                  // note) — nothing meaningful to show here per-product.
+                  costCell = <span style={{color:"#d1d5db"}}>—</span>;
                   if(p.variantStockMode==="shared"){
                     stockCell = <span>{p.sharedStock||0}{unit?` ${unit}`:""} <span style={{fontSize:9,color:"#9ca3af"}}>(shared)</span></span>;
                   } else {
@@ -1131,6 +1134,7 @@ function Inventory({store,data,session,primary}){
                 } else if(p.stockMode==="auto"&&p.recipe?.length){
                   const stock = Math.min(...p.recipe.map(r=>{const ing=products.find(x=>x.id===r.productId);return ing?Math.floor((ing.stock||0)/r.qty):0}));
                   priceCell = fmt(p.price)+(p.soldByWeight?`/${unit||"kg"}`:"");
+                  costCell = p.costPrice>0 ? <span>{fmt(p.costPrice)}{p.soldByWeight?`/${unit||"kg"}`:""}</span> : <span style={{color:"#d1d5db"}}>not set</span>;
                   stockCell = <div style={{display:"flex",alignItems:"center",gap:4}}>
                     <span style={{fontWeight:700,color:stock===0?"#dc2626":stock<10?"#f59e0b":"#111"}}>{stock}</span>
                     <span style={{fontSize:8,fontWeight:700,padding:"1px 4px",borderRadius:4,background:"#e0f2fe",color:"#0891b2"}}>AUTO</span>
@@ -1138,6 +1142,7 @@ function Inventory({store,data,session,primary}){
                 } else {
                   const stock=p.stock||0;
                   priceCell = fmt(p.price)+(p.soldByWeight?`/${unit||"kg"}`:"");
+                  costCell = p.costPrice>0 ? <span>{fmt(p.costPrice)}{p.soldByWeight?`/${unit||"kg"}`:""}</span> : <span style={{color:"#d1d5db"}}>not set</span>;
                   stockCell = <span style={{fontWeight:700,color:stock===0?"#dc2626":stock<10?"#f59e0b":"#111"}}>{stock}{unit?` ${unit}`:""}</span>;
                 }
 
@@ -1164,6 +1169,7 @@ function Inventory({store,data,session,primary}){
                       </td>
                       <td style={{padding:"10px 12px",color:"#6b7280"}}>{p.category}</td>
                       <td style={{padding:"10px 12px",fontWeight:700,color:P}}>{priceCell}</td>
+                      <td style={{padding:"10px 12px",fontSize:12.5}}>{costCell}</td>
                       <td style={{padding:"10px 12px"}}>{stockCell}</td>
                       <td style={{padding:"10px 12px",fontFamily:"monospace",fontSize:11,color:"#6b7280"}}>{p.sku||"—"}</td>
                       <td style={{padding:"10px 12px"}}>
@@ -1172,7 +1178,7 @@ function Inventory({store,data,session,primary}){
                     </tr>
                     {isOpen&&p.hasVariants&&(
                       <tr style={{borderBottom:"0.5px solid #f3f4f6"}}>
-                        <td colSpan={6} style={{padding:0,background:"#f9fafb"}}>
+                        <td colSpan={7} style={{padding:0,background:"#f9fafb"}}>
                           <div style={{padding:"10px 16px 12px 57px"}}>
                             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                               <thead>
@@ -1199,7 +1205,7 @@ function Inventory({store,data,session,primary}){
                     )}
                     {isOpen&&p.stockMode==="auto"&&p.recipe?.length>0&&(
                       <tr style={{borderBottom:"0.5px solid #f3f4f6"}}>
-                        <td colSpan={6} style={{padding:0,background:"#f9fafb"}}>
+                        <td colSpan={7} style={{padding:0,background:"#f9fafb"}}>
                           <div style={{padding:"10px 16px 12px 57px"}}>
                             <div style={{fontSize:10,fontWeight:700,color:"#9ca3af",marginBottom:6,textTransform:"uppercase"}}>Made from</div>
                             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
@@ -1230,7 +1236,7 @@ function Inventory({store,data,session,primary}){
                   </Fragment>
                 );
               })}
-              {filtered.length===0&&<tr><td colSpan={6} style={{padding:"40px",textAlign:"center",color:"#9ca3af"}}>No products found</td></tr>}
+              {filtered.length===0&&<tr><td colSpan={7} style={{padding:"40px",textAlign:"center",color:"#9ca3af"}}>No products found</td></tr>}
             </tbody>
           </table>
           </div>
