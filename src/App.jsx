@@ -1056,6 +1056,32 @@ function Reports({store,data,primary,isOwner,saveField}){
   );
 }
 // ════════════ INVENTORY ════════════
+// Cost basis for a recipe/auto-stock product, computed live from each
+// ingredient's own Cost Price × how much of it the recipe uses — mirrors
+// the same helper in the PWA. `complete` is false if any ingredient is
+// missing, deleted, a variant product (no per-variant cost support yet),
+// or has no cost price set — callers show that plainly rather than
+// silently treating it as ₱0.
+const computeRecipeCost = (p, allProducts) => {
+  if(!p.recipe || !p.recipe.length) return {cost:0, complete:true};
+  let cost=0, complete=true;
+  for(const r of p.recipe){
+    if(!r.productId || !r.qty){ complete=false; continue; }
+    const ing = allProducts.find(x=>x.id===r.productId);
+    if(!ing){ complete=false; continue; }
+    if(ing.hasVariants){ complete=false; continue; }
+    let ingCost, ingOk;
+    if(ing.recipe?.length){
+      const nested = computeRecipeCost(ing, allProducts);
+      ingCost = nested.cost; ingOk = nested.complete;
+    } else {
+      ingCost = ing.costPrice||0; ingOk = (ing.costPrice||0)>0;
+    }
+    if(!ingOk) complete=false;
+    cost += ingCost * r.qty;
+  }
+  return {cost, complete};
+};
 function Inventory({store,data,session,primary}){
   const products=data?.products||[];
   const categories=data?.categories||[];
@@ -1134,7 +1160,6 @@ function Inventory({store,data,session,primary}){
                 } else if(p.stockMode==="auto"&&p.recipe?.length){
                   const stock = Math.min(...p.recipe.map(r=>{const ing=products.find(x=>x.id===r.productId);return ing?Math.floor((ing.stock||0)/r.qty):0}));
                   priceCell = fmt(p.price)+(p.soldByWeight?`/${unit||"kg"}`:"");
-                  costCell = p.costPrice>0 ? <span>{fmt(p.costPrice)}{p.soldByWeight?`/${unit||"kg"}`:""}</span> : <span style={{color:"#d1d5db"}}>not set</span>;
                   stockCell = <div style={{display:"flex",alignItems:"center",gap:4}}>
                     <span style={{fontWeight:700,color:stock===0?"#dc2626":stock<10?"#f59e0b":"#111"}}>{stock}</span>
                     <span style={{fontSize:8,fontWeight:700,padding:"1px 4px",borderRadius:4,background:"#e0f2fe",color:"#0891b2"}}>AUTO</span>
@@ -1142,8 +1167,19 @@ function Inventory({store,data,session,primary}){
                 } else {
                   const stock=p.stock||0;
                   priceCell = fmt(p.price)+(p.soldByWeight?`/${unit||"kg"}`:"");
-                  costCell = p.costPrice>0 ? <span>{fmt(p.costPrice)}{p.soldByWeight?`/${unit||"kg"}`:""}</span> : <span style={{color:"#d1d5db"}}>not set</span>;
                   stockCell = <span style={{fontWeight:700,color:stock===0?"#dc2626":stock<10?"#f59e0b":"#111"}}>{stock}{unit?` ${unit}`:""}</span>;
+                }
+                // Cost is computed from ingredient costs whenever a recipe
+                // exists at all — independent of whether stock happens to
+                // be tracked automatically or manually for this product.
+                // An ingredient's cost is just as real either way.
+                if(p.recipe?.length>0){
+                  const {cost,complete}=computeRecipeCost(p,products);
+                  costCell = <span title={complete?"Computed from ingredient cost prices":"Some ingredients have no cost price set — this is a partial estimate"}>
+                    {fmt(cost)}{!complete&&<i className="ti ti-alert-triangle" style={{fontSize:11,color:"#d97706",marginLeft:4}}/>}
+                  </span>;
+                } else if(!p.hasVariants){
+                  costCell = p.costPrice>0 ? <span>{fmt(p.costPrice)}{p.soldByWeight?`/${unit||"kg"}`:""}</span> : <span style={{color:"#d1d5db"}}>not set</span>;
                 }
 
                 return(
@@ -1262,8 +1298,10 @@ function InventoryProfits({products,fmt,primary}){
     const stock = p.stockMode==="auto"&&p.recipe?.length
       ? Math.min(...p.recipe.map(r=>{const ing=products.find(x=>x.id===r.productId);return ing?Math.floor((ing.stock||0)/r.qty):0}))
       : (p.stock||0);
-    const hasCost = (p.costPrice||0) > 0;
-    return { p, stock, retail: stock*(p.price||0), cost: stock*(p.costPrice||0), hasCost };
+    const isRecipe = p.recipe?.length>0;
+    const perUnitCost = isRecipe ? computeRecipeCost(p, products) : {cost:p.costPrice||0, complete:(p.costPrice||0)>0};
+    const hasCost = perUnitCost.complete && perUnitCost.cost>0;
+    return { p, stock, retail: stock*(p.price||0), cost: stock*perUnitCost.cost, hasCost };
   });
 
   const costTracked = withRetail.filter(x=>x.hasCost);
