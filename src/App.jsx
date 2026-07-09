@@ -1150,7 +1150,15 @@ function Inventory({store,data,session,primary}){
                   priceCell = minP===maxP?fmt(minP):`${fmt(minP)}–${fmt(maxP)}`;
                   // Cost isn't tracked per-variant yet (see the Profits tab's
                   // note) — nothing meaningful to show here per-product.
-                  costCell = <span style={{color:"#d1d5db"}}>—</span>;
+                  if(p.variantStockMode==="shared"){
+                    costCell = p.costPrice>0 ? <span>{fmt(p.costPrice)}</span> : <span style={{color:"#d1d5db"}}>not set</span>;
+                  } else {
+                    const priced=(p.variants||[]).filter(v=>(v.price||0)>0);
+                    const costs=priced.map(v=>v.costPrice||0);
+                    const complete=priced.length>0 && costs.every(c=>c>0);
+                    if(!complete){ costCell = <span style={{color:"#d1d5db"}}>not set</span>; }
+                    else{ const cmin=Math.min(...costs), cmax=Math.max(...costs); costCell = <span>{cmin===cmax?fmt(cmin):`${fmt(cmin)} – ${fmt(cmax)}`}</span>; }
+                  }
                   if(p.variantStockMode==="shared"){
                     stockCell = <span>{p.sharedStock||0}{unit?` ${unit}`:""} <span style={{fontSize:9,color:"#9ca3af"}}>(shared)</span></span>;
                   } else {
@@ -1221,6 +1229,7 @@ function Inventory({store,data,session,primary}){
                                 <tr>
                                   <th style={{textAlign:"left",padding:"4px 8px",color:"#9ca3af",fontWeight:700,fontSize:10}}>Variant</th>
                                   <th style={{textAlign:"right",padding:"4px 8px",color:"#9ca3af",fontWeight:700,fontSize:10}}>Price</th>
+                                  <th style={{textAlign:"right",padding:"4px 8px",color:"#9ca3af",fontWeight:700,fontSize:10}}>Cost</th>
                                   <th style={{textAlign:"right",padding:"4px 8px",color:"#9ca3af",fontWeight:700,fontSize:10}}>{p.variantStockMode==="shared"?"Uses per sale":"Stock"}</th>
                                 </tr>
                               </thead>
@@ -1229,10 +1238,11 @@ function Inventory({store,data,session,primary}){
                                   <tr key={v.id}>
                                     <td style={{padding:"4px 8px",fontWeight:600}}>{v.label||v.name||"—"}</td>
                                     <td style={{padding:"4px 8px",textAlign:"right"}}>{fmt(v.price)}</td>
+                                    <td style={{padding:"4px 8px",textAlign:"right",color:v.costPrice>0?"#111":"#d1d5db"}}>{p.variantStockMode==="shared"?"—":(v.costPrice>0?fmt(v.costPrice):"not set")}</td>
                                     <td style={{padding:"4px 8px",textAlign:"right"}}>{p.variantStockMode==="shared"?`${v.uses||0} ${unit||"unit"}`:(v.stock||0)}</td>
                                   </tr>
                                 ))}
-                                {(p.variants||[]).length===0&&<tr><td colSpan={3} style={{padding:"8px",color:"#9ca3af",textAlign:"center"}}>No variants configured</td></tr>}
+                                {(p.variants||[]).length===0&&<tr><td colSpan={4} style={{padding:"8px",color:"#9ca3af",textAlign:"center"}}>No variants configured</td></tr>}
                               </tbody>
                             </table>
                           </div>
@@ -1312,17 +1322,29 @@ function InventoryProfits({products,fmt,primary}){
   const missingCostCount = withRetail.length - costTracked.length;
 
   const variantRetail = variantProducts.map(p=>{
-    let value = 0;
+    let value = 0, cost = 0, hasCost = false;
     if(p.variantStockMode==="shared"){
       const rates=(p.variants||[]).filter(v=>v.uses>0).map(v=>(v.price||0)/v.uses);
       const avgRate=rates.length?rates.reduce((s,r)=>s+r,0)/rates.length:0;
       value=(p.sharedStock||0)*avgRate;
+      hasCost=(p.costPrice||0)>0;
+      cost=hasCost?(p.sharedStock||0)*p.costPrice:0;
     } else {
       value=(p.variants||[]).reduce((s,v)=>s+((v.stock||0)*(v.price||0)),0);
+      const stocked=(p.variants||[]).filter(v=>(v.stock||0)>0);
+      hasCost=stocked.length>0 && stocked.every(v=>(v.costPrice||0)>0);
+      cost=hasCost?stocked.reduce((s,v)=>s+((v.stock||0)*(v.costPrice||0)),0):0;
     }
-    return { p, value };
+    return { p, value, cost, hasCost };
   });
   const totalRetailAll = withRetail.reduce((s,x)=>s+x.retail,0) + variantRetail.reduce((s,x)=>s+x.value,0);
+  const variantCostTracked = variantRetail.filter(x=>x.hasCost);
+  const totalCostValueAll = totalCostValue + variantCostTracked.reduce((s,x)=>s+x.cost,0);
+  const retailOfCostTrackedAll = retailOfCostTracked + variantCostTracked.reduce((s,x)=>s+x.value,0);
+  const potentialProfitAll = retailOfCostTrackedAll - totalCostValueAll;
+  const marginPctAll = retailOfCostTrackedAll>0 ? (potentialProfitAll/retailOfCostTrackedAll*100) : 0;
+  const missingCostCountAll = missingCostCount + (variantProducts.length - variantCostTracked.length);
+  const anyCostTracked = costTracked.length>0 || variantCostTracked.length>0;
 
   const byCategory={};
   withRetail.forEach(x=>{
@@ -1343,26 +1365,26 @@ function InventoryProfits({products,fmt,primary}){
         </Card>
         <Card style={{padding:12}}>
           <div style={{fontSize:10,color:"#9ca3af",marginBottom:4}}>Total Cost Value</div>
-          <div style={{fontSize:17,fontWeight:800,color:"#b45309"}}>{fmt(totalCostValue)}</div>
+          <div style={{fontSize:17,fontWeight:800,color:"#b45309"}}>{fmt(totalCostValueAll)}</div>
         </Card>
         <Card style={{padding:12}}>
           <div style={{fontSize:10,color:"#9ca3af",marginBottom:4}}>Potential Profit</div>
-          <div style={{fontSize:17,fontWeight:800,color:"#059669"}}>{fmt(potentialProfit)}</div>
+          <div style={{fontSize:17,fontWeight:800,color:"#059669"}}>{fmt(potentialProfitAll)}</div>
         </Card>
         <Card style={{padding:12}}>
           <div style={{fontSize:10,color:"#9ca3af",marginBottom:4}}>Margin</div>
-          <div style={{fontSize:17,fontWeight:800,color:"#7c3aed"}}>{costTracked.length?`${marginPct.toFixed(1)}%`:"—"}</div>
+          <div style={{fontSize:17,fontWeight:800,color:"#7c3aed"}}>{anyCostTracked?`${marginPctAll.toFixed(1)}%`:"—"}</div>
         </Card>
       </div>
 
       <div style={{fontSize:11,color:"#9ca3af",marginBottom:16,lineHeight:1.5}}>
-        Cost Value, Potential Profit, and Margin are calculated only from products with a Cost Price set in the POS app. "Total Retail Value" includes every product regardless.
+        Cost Value, Potential Profit, and Margin are calculated only from products with a Cost Price set in the POS app (per-variant for products with variants). "Total Retail Value" includes every product regardless.
       </div>
 
-      {missingCostCount>0&&(
+      {missingCostCountAll>0&&(
         <div style={{padding:"10px 14px",background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10,color:"#92400e",fontSize:12,marginBottom:16,display:"flex",alignItems:"center",gap:8}}>
           <i className="ti ti-alert-triangle" style={{fontSize:15,flexShrink:0}}/>
-          {missingCostCount} product{missingCostCount===1?"":"s"} {missingCostCount===1?"doesn't":"don't"} have a Cost Price set yet — {missingCostCount===1?"it isn't":"they aren't"} included in the profit/margin numbers above.
+          {missingCostCountAll} product{missingCostCountAll===1?"":"s"} {missingCostCountAll===1?"doesn't":"don't"} have a Cost Price set yet — {missingCostCountAll===1?"it isn't":"they aren't"} included in the profit/margin numbers above.
         </div>
       )}
 
@@ -1395,14 +1417,24 @@ function InventoryProfits({products,fmt,primary}){
 
       {variantProducts.length>0&&(
         <>
-          <div style={{fontWeight:800,fontSize:14,marginBottom:10}}>Products with Variants <span style={{fontWeight:400,color:"#9ca3af",fontSize:11}}>— retail value only, cost tracking not yet available per-variant</span></div>
+          <div style={{fontWeight:800,fontSize:14,marginBottom:10}}>Products with Variants</div>
           <Card style={{padding:0,overflow:"hidden"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
+              <thead>
+                <tr style={{background:"#f9fafb"}}>
+                  <th style={{textAlign:"left",padding:"8px 12px",color:"#6b7280",fontWeight:700}}>Product</th>
+                  <th style={{textAlign:"right",padding:"8px 12px",color:"#6b7280",fontWeight:700}}>Retail Value</th>
+                  <th style={{textAlign:"right",padding:"8px 12px",color:"#6b7280",fontWeight:700}}>Cost Value</th>
+                  <th style={{textAlign:"right",padding:"8px 12px",color:"#6b7280",fontWeight:700}}>Profit</th>
+                </tr>
+              </thead>
               <tbody>
-                {variantRetail.map(({p,value})=>(
+                {variantRetail.map(({p,value,cost,hasCost})=>(
                   <tr key={p.id} style={{borderTop:"1px solid #f3f4f6"}}>
                     <td style={{padding:"8px 12px",fontWeight:700}}>{p.name}</td>
                     <td style={{padding:"8px 12px",textAlign:"right"}}>{fmt(value)}</td>
+                    <td style={{padding:"8px 12px",textAlign:"right",color:hasCost?"#111":"#d1d5db"}}>{hasCost?fmt(cost):"not set"}</td>
+                    <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:hasCost?"#059669":"#d1d5db"}}>{hasCost?fmt(value-cost):"—"}</td>
                   </tr>
                 ))}
               </tbody>
