@@ -589,7 +589,7 @@ function Dashboard({store,data,primary,licenseRow}){
   const orders=(data?.orders||[]).filter(o=>o.status==="paid");
   const products=data?.products||[];
   const shifts=data?.shifts||[];
-  const activeShift=data?.active_shift;
+  const activeShifts=Array.isArray(data?.active_shifts) ? data.active_shifts : (data?.active_shift ? [data.active_shift] : []);
   const todayOrders=orders.filter(o=>o.dateKey===todayKey());
   const todaySales=todayOrders.reduce((s,o)=>s+o.total,0);
   const weekOrders=orders.filter(o=>o.dateKey>=weekStart());
@@ -637,38 +637,43 @@ function Dashboard({store,data,primary,licenseRow}){
         );
       })()}
 
-      {activeShift&&(()=>{
-        const shiftOrders=orders.filter(o=>o.shiftId===activeShift.id);
-        const shiftSales=shiftOrders.reduce((s,o)=>s+o.total,0);
-        const liveBreakdown=shiftOrders.reduce((acc,o)=>{const m=o.payMethod||"cash";acc[m]=(acc[m]||0)+o.total;return acc;},{});
-        return(
-          <div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:12,padding:"14px 18px",marginBottom:18}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-              <div style={{width:10,height:10,borderRadius:"50%",background:"#16a34a",boxShadow:"0 0 8px #16a34a",flexShrink:0}}/>
-              <b style={{color:"#166534",fontSize:14}}>Shift In Progress</b>
-              <span style={{fontSize:12,color:"#6b7280",marginLeft:"auto"}}>{activeShift.startTime}</span>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:Object.keys(liveBreakdown).length>0?10:0}}>
-              {[{label:"Cashier",value:activeShift.cashier,color:"#166534"},{label:"Opening Cash",value:fmt(activeShift.openCash),color:"#374151"},{label:"Shift Sales",value:fmt(shiftSales),color:primary||"#4f46e5"},{label:"Orders",value:`${shiftOrders.length} orders`,color:"#374151"}].map(r=>(
-                <div key={r.label} style={{background:"#fff",borderRadius:8,padding:"8px 12px"}}>
-                  <div style={{fontSize:10,color:"#9ca3af",fontWeight:600,textTransform:"uppercase",letterSpacing:0.4,marginBottom:3}}>{r.label}</div>
-                  <div style={{fontSize:14,fontWeight:800,color:r.color}}>{r.value}</div>
+      {activeShifts.length>0&&(
+        <div style={{marginBottom:18,display:"flex",flexDirection:"column",gap:10}}>
+          {activeShifts.map(activeShift=>{
+            const shiftOrders=orders.filter(o=>o.shiftId===activeShift.id);
+            const shiftSales=shiftOrders.reduce((s,o)=>s+o.total,0);
+            const liveBreakdown=shiftOrders.reduce((acc,o)=>{const m=o.payMethod||"cash";acc[m]=(acc[m]||0)+o.total;return acc;},{});
+            return(
+              <div key={activeShift.id} style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:12,padding:"14px 18px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+                  <div style={{width:10,height:10,borderRadius:"50%",background:"#16a34a",boxShadow:"0 0 8px #16a34a",flexShrink:0}}/>
+                  <b style={{color:"#166534",fontSize:14}}>Shift In Progress</b>
+                  {activeShift.deviceName&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:"#dcfce7",color:"#166534"}}>{activeShift.deviceName}</span>}
+                  <span style={{fontSize:12,color:"#6b7280",marginLeft:"auto"}}>{activeShift.startTime}</span>
                 </div>
-              ))}
-            </div>
-            {Object.keys(liveBreakdown).length>0&&(
-              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                <span style={{fontSize:10,color:"#6b7280",fontWeight:600,alignSelf:"center",textTransform:"uppercase",letterSpacing:0.4}}>Payments:</span>
-                {Object.entries(liveBreakdown).map(([method,amt])=>(
-                  <span key={method} style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:8,background:method==="cash"?"#dcfce7":"#eff6ff",color:method==="cash"?"#166534":"#1e40af"}}>
-                    {method.charAt(0).toUpperCase()+method.slice(1)}: {fmt(amt)}
-                  </span>
-                ))}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:Object.keys(liveBreakdown).length>0?10:0}}>
+                  {[{label:"Cashier",value:activeShift.cashier,color:"#166534"},{label:"Opening Cash",value:fmt(activeShift.openCash),color:"#374151"},{label:"Shift Sales",value:fmt(shiftSales),color:primary||"#4f46e5"},{label:"Orders",value:`${shiftOrders.length} orders`,color:"#374151"}].map(r=>(
+                    <div key={r.label} style={{background:"#fff",borderRadius:8,padding:"8px 12px"}}>
+                      <div style={{fontSize:10,color:"#9ca3af",fontWeight:600,textTransform:"uppercase",letterSpacing:0.4,marginBottom:3}}>{r.label}</div>
+                      <div style={{fontSize:14,fontWeight:800,color:r.color}}>{r.value}</div>
+                    </div>
+                  ))}
+                </div>
+                {Object.keys(liveBreakdown).length>0&&(
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                    <span style={{fontSize:10,color:"#6b7280",fontWeight:600,alignSelf:"center",textTransform:"uppercase",letterSpacing:0.4}}>Payments:</span>
+                    {Object.entries(liveBreakdown).map(([method,amt])=>(
+                      <span key={method} style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:8,background:method==="cash"?"#dcfce7":"#eff6ff",color:method==="cash"?"#166534":"#1e40af"}}>
+                        {method.charAt(0).toUpperCase()+method.slice(1)}: {fmt(amt)}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        );
-      })()}
+            );
+          })}
+        </div>
+      )}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:14,marginBottom:20}}>
         {CARDS.map(c=>(
           <div key={c.label} style={{background:"#fff",borderRadius:14,padding:18,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}>
@@ -710,7 +715,7 @@ function Dashboard({store,data,primary,licenseRow}){
           {shifts.slice(0,5).map(s=>(
             <div key={s.id} style={{padding:"7px 0",borderBottom:"1px solid #f3f4f6"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div style={{fontSize:13,fontWeight:700}}>{s.cashier}</div>
+                <div style={{fontSize:13,fontWeight:700}}>{s.cashier}{s.deviceName&&<span style={{fontSize:10,fontWeight:600,color:"#9ca3af"}}> · {s.deviceName}</span>}</div>
                 <div style={{fontSize:13,fontWeight:800,color:s.overShort>=0?"#166534":"#991b1b"}}>{s.overShort>=0?"+":""}{fmt(s.overShort)}</div>
               </div>
               <div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>{s.startTime} · Sales: {fmt(s.totalSales)} · {s.shiftOrders} orders</div>
@@ -774,6 +779,7 @@ function PortalShiftsTab({shifts,filteredShifts,logs=[],fmt,primary,shiftPeriod,
             <div>
               <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                 <div style={{fontWeight:800,fontSize:13}}>{s.cashier}</div>
+                {s.deviceName&&<span style={{fontSize:9,fontWeight:700,padding:"1px 7px",borderRadius:8,background:"#f3f4f6",color:"#6b7280"}}>{s.deviceName}</span>}
                 {s.status==="partial"&&!s.editLocked&&<span style={{fontSize:10,fontWeight:800,padding:"1px 7px",borderRadius:8,background:"#fef3c7",color:"#92400e"}}>PARTIAL</span>}
                 {s.closedReason==="auto_24h"&&<span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:8,background:"#f3f4f6",color:"#6b7280"}}>AUTO-ENDED</span>}
               </div>
@@ -969,7 +975,7 @@ function Reports({store,data,primary,isOwner,saveField}){
       const payRow=s.payBreakdown&&Object.keys(s.payBreakdown).length>0
         ?`<tr><td colspan="8" style="padding:2px 8px 6px;font-size:10px;color:#6b7280;border-bottom:1px solid #e5e7eb">Payments: ${Object.entries(s.payBreakdown).map(([m,a])=>`<span style="background:${m==="cash"?"#dcfce7":"#eff6ff"};color:${m==="cash"?"#166534":"#1e40af"};padding:1px 6px;border-radius:4px;font-weight:700;margin-right:4px">${m.charAt(0).toUpperCase()+m.slice(1)}: ${fmt(a)}</span>`).join("")}</td></tr>`
         :"";
-      return `<tr><td>${s.cashier}</td><td style="font-size:10px">${s.startTime}<br/>${s.endTime}</td><td class="right">${s.shiftOrders}</td><td class="right">${fmt(s.openCash)}</td><td class="right">${fmt(s.totalSales)}</td><td class="right">${fmt(s.totalExpenses||0)}</td><td class="right">${fmt(s.closeCash)}</td><td class="right ${s.overShort>=0?"green":"red"}">${s.overShort>=0?"+":""}${fmt(s.overShort)}</td></tr>${payRow}`;
+      return `<tr><td>${s.cashier}${s.deviceName?` <span style="color:#9ca3af;font-size:10px">(${s.deviceName})</span>`:""}</td><td style="font-size:10px">${s.startTime}<br/>${s.endTime}</td><td class="right">${s.shiftOrders}</td><td class="right">${fmt(s.openCash)}</td><td class="right">${fmt(s.totalSales)}</td><td class="right">${fmt(s.totalExpenses||0)}</td><td class="right">${fmt(s.closeCash)}</td><td class="right ${s.overShort>=0?"green":"red"}">${s.overShort>=0?"+":""}${fmt(s.overShort)}</td></tr>${payRow}`;
     }).join("");
     printReport(`<h1>Shift Report — ${shiftPeriodLabel}</h1><p class="meta">Store: ${store?.store_name} | ${filteredShifts.length} shifts</p><table><thead><tr><th>Cashier</th><th>Period</th><th class="right">Orders</th><th class="right">Opening</th><th class="right">Sales</th><th class="right">Expenses</th><th class="right">Closing</th><th class="right">Over/Short</th></tr></thead><tbody>${rows}</tbody></table>`,`Shift Report — ${store?.store_name}`);
   };
