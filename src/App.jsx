@@ -397,6 +397,7 @@ export default function App(){
     {id:"reports",  icon:"ti-chart-bar",        label:"Reports"},
     {id:"inventory",icon:"ti-box",              label:"Inventory"},
     {id:"orders",   icon:"ti-receipt",          label:"Orders"},
+    ...(data?.enable_loyalty ? [{id:"loyalty", icon:"ti-gift", label:"Loyalty"}] : []),
     {id:"accounts", icon:"ti-users",            label:"Accounts"},
     {id:"settings", icon:"ti-settings",         label:"Settings"},
   ];
@@ -486,6 +487,7 @@ export default function App(){
         {data&&view==="reports"  &&<Reports   store={store} data={data} primary={PRIMARY} isOwner={isOwner} saveField={saveField}/>}
         {data&&view==="inventory"&&<Inventory store={store} data={data} session={session} saveField={saveField} primary={PRIMARY}/>}
         {data&&view==="orders"   &&<Orders    store={store} data={data} session={session} saveField={saveField}/>}
+        {data&&view==="loyalty"  &&<LoyaltyTab data={data} primary={PRIMARY}/>}
         {data&&view==="accounts" &&<Accounts  store={store} data={data} session={session} saveField={saveField}/>}
         {data&&view==="settings" &&<Settings  store={store} data={data} session={session} onRefresh={()=>loadData(session.storeId)}/>}
       </div>
@@ -1109,6 +1111,77 @@ const computeRecipeCost = (p, allProducts) => {
   }
   return {cost, complete};
 };
+// ── LOYALTY (read-only) ── mirrors the PWA's Customers view, just without
+// any editing — the portal is a monitoring surface, not where an owner
+// would manage the reward catalog or redeem something for someone who
+// isn't standing in front of them.
+function LoyaltyTab({data,primary}){
+  const [search,setSearch]=useState("");
+  const customers=data?.customers||[];
+  const orders=data?.orders||[];
+  const rewards=data?.loyalty_rewards||[];
+
+  const filtered=customers.filter(c=>
+    !search.trim() || c.name?.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search) || c.email?.toLowerCase().includes(search.toLowerCase())
+  ).sort((a,b)=>(b.loyaltyPoints||0)-(a.loyaltyPoints||0));
+
+  const custSpend=(c)=>orders.filter(o=>o.customerId===c.id&&o.status==="paid").reduce((s,o)=>s+o.total,0);
+  const totalPointsOutstanding=customers.reduce((s,c)=>s+(c.loyaltyPoints||0),0);
+  const activeVouchers=customers.reduce((s,c)=>s+(c.loyaltyRedemptions||[]).filter(r=>r.status==="unused").length,0);
+
+  return(
+    <div>
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+        <span style={{fontWeight:800,fontSize:18,marginRight:4}}>Loyalty</span>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, phone, email…" style={{flex:1,minWidth:180,padding:"7px 12px",border:"1px solid #e5e7eb",borderRadius:8,fontSize:13}}/>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:16}}>
+        <Card style={{padding:12}}>
+          <div style={{fontSize:10,color:"#9ca3af",marginBottom:4}}>Members</div>
+          <div style={{fontSize:17,fontWeight:800}}>{customers.length}</div>
+        </Card>
+        <Card style={{padding:12}}>
+          <div style={{fontSize:10,color:"#9ca3af",marginBottom:4}}>Points Outstanding</div>
+          <div style={{fontSize:17,fontWeight:800,color:primary}}>{totalPointsOutstanding}</div>
+        </Card>
+        <Card style={{padding:12}}>
+          <div style={{fontSize:10,color:"#9ca3af",marginBottom:4}}>Unused Vouchers</div>
+          <div style={{fontSize:17,fontWeight:800,color:"#d97706"}}>{activeVouchers}</div>
+        </Card>
+        <Card style={{padding:12}}>
+          <div style={{fontSize:10,color:"#9ca3af",marginBottom:4}}>Catalog Items</div>
+          <div style={{fontSize:17,fontWeight:800}}>{rewards.length}</div>
+        </Card>
+      </div>
+
+      <Card style={{padding:0,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
+          <thead>
+            <tr style={{background:"#f9fafb"}}>
+              <th style={{textAlign:"left",padding:"8px 12px",color:"#6b7280",fontWeight:700}}>Customer</th>
+              <th style={{textAlign:"left",padding:"8px 12px",color:"#6b7280",fontWeight:700}}>Contact</th>
+              <th style={{textAlign:"right",padding:"8px 12px",color:"#6b7280",fontWeight:700}}>Total Spent</th>
+              <th style={{textAlign:"right",padding:"8px 12px",color:"#6b7280",fontWeight:700}}>Points</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(c=>(
+              <tr key={c.id} style={{borderTop:"1px solid #f3f4f6"}}>
+                <td style={{padding:"8px 12px",fontWeight:700}}>{c.name}</td>
+                <td style={{padding:"8px 12px",color:"#6b7280"}}>{c.phone||c.email||"—"}</td>
+                <td style={{padding:"8px 12px",textAlign:"right"}}>{fmt(custSpend(c))}</td>
+                <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:primary}}>{c.loyaltyPoints||0}</td>
+              </tr>
+            ))}
+            {filtered.length===0&&<tr><td colSpan={4} style={{padding:"24px",textAlign:"center",color:"#9ca3af"}}>No loyalty members yet</td></tr>}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
+
 function Inventory({store,data,session,primary}){
   const products=data?.products||[];
   const categories=data?.categories||[];
