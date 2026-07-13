@@ -1397,7 +1397,7 @@ function Inventory({store,data,session,primary}){
 
       {tab==="profits"&&<InventoryProfits products={products} fmt={fmt} primary={P}/>}
 
-      {tab==="logs"&&<InventoryLogs logs={logs} store={store}/>}
+      {tab==="logs"&&<InventoryLogs logs={logs}/>}
     </div>
   );
 }
@@ -1554,24 +1554,20 @@ function InventoryProfits({products,fmt,primary}){
 
 // ── LOGS ── straightforward filterable feed of data.logs, same idea as
 // the PWA's Logs tab.
-function InventoryLogs({logs,store}){
+function InventoryLogs({logs}){
   const [typeFilter,setTypeFilter]=useState("all");
   const [search,setSearch]=useState("");
-  const types=["all",...new Set(logs.map(l=>l.type).filter(Boolean))];
-  const filtered=logs.filter(l=>
+  // Support-team actions (performed during a dev-support session) never
+  // show here — the portal is exclusively the owner's own view, with no
+  // equivalent "developer mode" toggle the way the PWA has. An owner
+  // seeing an unexplained action they didn't take, with no context for
+  // why, would just be confusing rather than useful.
+  const visibleLogs = logs.filter(l=>!l.viaDevSupport);
+  const types=["all",...new Set(visibleLogs.map(l=>l.type).filter(Boolean))];
+  const filtered=visibleLogs.filter(l=>
     (typeFilter==="all"||l.type===typeFilter)&&
     (!search||l.detail?.toLowerCase().includes(search.toLowerCase())||l.action?.toLowerCase().includes(search.toLowerCase()))
   ).sort((a,b)=>new Date(b.ts||0)-new Date(a.ts||0));
-  // Every log entry already silently records which device made it — this
-  // was never surfaced anywhere before. Resolves to a friendly name from
-  // the store's registered devices when possible; falls back to a
-  // shortened raw ID so two entries can still be visually compared even
-  // for a device that's since been removed/renamed.
-  const deviceName = (id) => {
-    if(!id) return "—";
-    const known = (store?.devices||[]).find(d=>d.id===id);
-    return known?.name || `${id.slice(0,10)}…`;
-  };
 
   return(
     <div>
@@ -1583,10 +1579,10 @@ function InventoryLogs({logs,store}){
       </div>
       <Card style={{padding:0,overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",minWidth:620,borderCollapse:"collapse",fontSize:12.5}}>
+        <table style={{width:"100%",minWidth:520,borderCollapse:"collapse",fontSize:12.5}}>
           <thead>
             <tr style={{background:"#f9fafb"}}>
-              {["Time","Type","Action","Detail","Device"].map(h=>(
+              {["Time","Type","Action","Detail"].map(h=>(
                 <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,fontSize:11,color:"#6b7280",borderBottom:"1px solid #e5e7eb"}}>{h}</th>
               ))}
             </tr>
@@ -1598,10 +1594,9 @@ function InventoryLogs({logs,store}){
                 <td style={{padding:"8px 12px"}}><span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:8,background:"#f3f4f6",color:"#374151"}}>{l.type||"—"}</span></td>
                 <td style={{padding:"8px 12px",fontWeight:600}}>{l.action||"—"}</td>
                 <td style={{padding:"8px 12px",color:"#6b7280"}}>{l.detail||"—"}</td>
-                <td style={{padding:"8px 12px",color:"#6b7280",fontSize:11,whiteSpace:"nowrap"}} title={l.device||""}>{deviceName(l.device)}</td>
               </tr>
             ))}
-            {filtered.length===0&&<tr><td colSpan={5} style={{padding:"40px",textAlign:"center",color:"#9ca3af"}}>No logs found</td></tr>}
+            {filtered.length===0&&<tr><td colSpan={4} style={{padding:"40px",textAlign:"center",color:"#9ca3af"}}>No logs found</td></tr>}
           </tbody>
         </table>
         </div>
