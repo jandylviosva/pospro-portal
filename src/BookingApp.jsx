@@ -43,6 +43,13 @@ const hasBookingConflict = (bookings, resourceId, date, time, durationMinutes) =
   });
 };
 const toLocalDateKey = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+// Same rule as create-booking.js: hourly pricing only applies to flexible-duration services.
+const computeAmount = (svc, durationMinutes) => {
+  if (svc.durationMode === "flexible" && svc.pricingMode === "hourly") {
+    return Math.round(((svc.price || 0) * (durationMinutes || 0)) / 60);
+  }
+  return svc.price || 0;
+};
 const fmtPeso = (n) => `\u20B1\u200A${Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:0,maximumFractionDigits:2})}`;
 const fmtDateLabel = (dateStr) => new Date(dateStr+"T00:00:00").toLocaleDateString("en-PH",{weekday:"short",month:"short",day:"numeric"});
 const fmtTimeLabel = (t) => {
@@ -83,6 +90,8 @@ export default function BookingApp() {
   const [submitting, setSubmitting] = useState(false);
 
   const [bookingId, setBookingId] = useState(null);
+  const [refCode, setRefCode] = useState(null);
+  const [fulfillmentNote, setFulfillmentNote] = useState("");
   const [amountDue, setAmountDue] = useState(0);
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [screenshotPreview, setScreenshotPreview] = useState(null);
@@ -165,6 +174,8 @@ export default function BookingApp() {
         return;
       }
       setBookingId(data.bookingId);
+      setRefCode(data.refCode);
+      setFulfillmentNote(data.fulfillmentNote || "");
       setAmountDue(data.amount || 0);
       setStep(data.requiresPayment ? "payment" : "done");
     } catch {
@@ -241,9 +252,9 @@ export default function BookingApp() {
                     style={{textAlign:"left",padding:"14px 16px",border:"1px solid #e5e7eb",borderRadius:12,background:"#fff",cursor:"pointer"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
                       <div style={{fontWeight:700,fontSize:14,color:"#111"}}>{s.name}</div>
-                      <div style={{fontWeight:800,fontSize:14,color:"#0d9488"}}>{fmtPeso(s.price)}</div>
+                      <div style={{fontWeight:800,fontSize:14,color:"#0d9488"}}>{fmtPeso(s.price)}{s.durationMode==="flexible"&&s.pricingMode==="hourly"?"/hr":""}</div>
                     </div>
-                    <div style={{fontSize:12,color:"#9ca3af",marginTop:3}}>{s.durationMinutes ? `${s.durationMinutes} min` : "Flexible duration"}</div>
+                    <div style={{fontSize:12,color:"#9ca3af",marginTop:3}}>{s.durationMode==="flexible" ? (s.pricingMode==="hourly"?"Flexible duration · billed hourly":"Flexible duration") : (s.durationMinutes ? `${s.durationMinutes} min` : "")}</div>
                   </button>
                 ))}
               </div>
@@ -268,7 +279,12 @@ export default function BookingApp() {
           {step === "schedule" && service && (
             <>
               <h2 style={{margin:"0 0 4px",fontSize:18}}>{service.name}</h2>
-              <p style={{color:"#6b7280",fontSize:13,margin:"0 0 18px"}}>{resource ? resource.name+" · " : ""}{fmtPeso(service.price)}</p>
+              <p style={{color:"#6b7280",fontSize:13,margin:"0 0 18px"}}>
+                {resource ? resource.name+" · " : ""}
+                {service.durationMode==="flexible" && service.pricingMode==="hourly"
+                  ? (time && endTime ? `${fmtPeso(computeAmount(service, minutesBetween(time,endTime)))} total` : `${fmtPeso(service.price)}/hr`)
+                  : fmtPeso(service.price)}
+              </p>
 
               <div style={{fontSize:12,fontWeight:700,color:"#374151",marginBottom:8}}>Date</div>
               <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:6,marginBottom:18}}>
@@ -344,7 +360,7 @@ export default function BookingApp() {
 
               <button onClick={createBooking} disabled={submitting}
                 style={{width:"100%",marginTop:20,padding:"13px 0",background:"#0d9488",color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:800,cursor:"pointer",opacity:submitting?0.7:1}}>
-                {submitting ? "Booking…" : (service.requiresPayment ? "Continue to Payment" : "Confirm Booking")}
+                {submitting ? "Booking…" : (service.requiresPayment ? "Continue to Payment" : `Confirm ${store.bookingNoun||"Booking"}`)}
               </button>
             </>
           )}
@@ -380,6 +396,10 @@ export default function BookingApp() {
                 style={{width:"100%",marginTop:20,padding:"13px 0",background:screenshotPreview?"#0d9488":"#d1fae5",color:"#fff",border:"none",borderRadius:10,fontSize:14,fontWeight:800,cursor:screenshotPreview?"pointer":"not-allowed",opacity:submitting?0.7:1}}>
                 {submitting ? "Submitting…" : "Submit Payment"}
               </button>
+              <p style={{fontSize:11,color:"#9ca3af",textAlign:"center",marginTop:14}}>
+                Your reference is <b>{refCode}</b> — save it. If you close this page, come back anytime at{" "}
+                <a href={`/bookings/${slug}/pay?ref=${encodeURIComponent(refCode||"")}`} style={{color:"#0d9488"}}>this link</a> to finish paying.
+              </p>
             </>
           )}
 
@@ -388,13 +408,19 @@ export default function BookingApp() {
               <div style={{width:64,height:64,borderRadius:"50%",background:"#f0fdfa",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 18px"}}>
                 <i className={`ti ${service?.requiresPayment?"ti-clock":"ti-check"}`} style={{fontSize:32,color:"#0d9488"}}/>
               </div>
-              <h2 style={{margin:"0 0 8px",fontSize:20}}>{service?.requiresPayment ? "Payment submitted!" : "You're booked!"}</h2>
-              <p style={{color:"#6b7280",fontSize:14,lineHeight:1.6}}>
+              <h2 style={{margin:"0 0 8px",fontSize:20}}>{service?.requiresPayment ? "Payment submitted!" : `Your ${(store.bookingNoun||"booking").toLowerCase()} is confirmed!`}</h2>
+              <p style={{color:"#6b7280",fontSize:14,lineHeight:1.6,marginBottom:16}}>
                 {service?.name} on {fmtDateLabel(date)}{time?` at ${fmtTimeLabel(time)}`:""}, for <b>{customerFirstName} {customerLastName}</b>.{" "}
                 {service?.requiresPayment
-                  ? `${store.storeName} will review your payment and confirm your booking shortly.`
-                  : `${store.storeName} may contact you at ${customerPhone} to confirm.`}
+                  ? `${store.storeName} will review your payment and confirm your ${(store.bookingNoun||"booking").toLowerCase()} shortly.`
+                  : (fulfillmentNote || `${store.storeName} may contact you at ${customerPhone} to confirm.`)}
               </p>
+              {refCode && (
+                <div style={{background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:10,padding:"12px 16px",display:"inline-block"}}>
+                  <div style={{fontSize:11,color:"#9ca3af",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>{store.bookingNoun||"Booking"} Reference — save this</div>
+                  <div style={{fontSize:18,fontWeight:800,color:"#111",marginTop:2}}>{refCode}</div>
+                </div>
+              )}
             </div>
           )}
         </div>
