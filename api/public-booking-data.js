@@ -93,5 +93,6 @@ export default async function handler(req, res) {
       number: (data.booking_page_settings && data.booking_page_settings.gcashNumber) || "",
       qrUrl: (data.booking_page_settings && data.booking_page_settings.gcashQrUrl) || "",
     },
+    bookingNoun: (data.booking_page_settings && data.booking_page_settings.bookingNoun) || "Booking",
   });
 }
