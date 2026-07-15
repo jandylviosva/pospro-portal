@@ -51,6 +51,12 @@ const computeAmount = (svc, durationMinutes) => {
   return svc.price || 0;
 };
 const fmtPeso = (n) => `\u20B1\u200A${Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:0,maximumFractionDigits:2})}`;
+const fmtHours = (mins) => { const h = Math.round((mins/60)*10)/10; return h % 1 === 0 ? String(h) : h.toFixed(1); };
+// Only meaningful for hourly-priced flexible services — null means "just show the flat price, no breakdown needed."
+const pricingBreakdown = (svc, durationMinutes) => {
+  if (svc.durationMode !== "flexible" || svc.pricingMode !== "hourly" || !durationMinutes) return null;
+  return `${fmtPeso(svc.price)}/hr \u00D7 ${fmtHours(durationMinutes)} hr${fmtHours(durationMinutes)==="1"?"":"s"}`;
+};
 const fmtDateLabel = (dateStr) => new Date(dateStr+"T00:00:00").toLocaleDateString("en-PH",{weekday:"short",month:"short",day:"numeric"});
 const fmtTimeLabel = (t) => {
   const [h,m] = t.split(":").map(Number);
@@ -287,7 +293,9 @@ export default function BookingApp() {
               <p style={{color:"#6b7280",fontSize:13,margin:"0 0 18px"}}>
                 {resource ? resource.name+" · " : ""}
                 {service.durationMode==="flexible" && service.pricingMode==="hourly"
-                  ? (time && endTime ? `${fmtPeso(computeAmount(service, minutesBetween(time,endTime)))} total` : `${fmtPeso(service.price)}/hr`)
+                  ? (time && endTime
+                      ? <>{fmtPeso(computeAmount(service, minutesBetween(time,endTime)))} total <span style={{color:"#9ca3af"}}>({pricingBreakdown(service, minutesBetween(time,endTime))})</span></>
+                      : `${fmtPeso(service.price)}/hr`)
                   : fmtPeso(service.price)}
               </p>
 
@@ -383,6 +391,9 @@ export default function BookingApp() {
               <div style={{background:"#f0fdfa",border:"1px solid #99f6e4",borderRadius:12,padding:16,textAlign:"center",marginBottom:18}}>
                 <div style={{fontSize:12,color:"#0d9488",fontWeight:700,marginBottom:4}}>Amount to send</div>
                 <div style={{fontSize:26,fontWeight:800,color:"#111"}}>{fmtPeso(amountDue)}</div>
+                {service && time && endTime && pricingBreakdown(service, minutesBetween(time,endTime)) && (
+                  <div style={{fontSize:12,color:"#0d9488",marginTop:4}}>{pricingBreakdown(service, minutesBetween(time,endTime))}</div>
+                )}
               </div>
 
               {store.gcash?.qrUrl && <img src={store.gcash.qrUrl} alt="GCash QR code" style={{width:"100%",maxWidth:220,display:"block",margin:"0 auto 14px",borderRadius:10}}/>}
