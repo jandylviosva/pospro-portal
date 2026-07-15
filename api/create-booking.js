@@ -10,6 +10,14 @@
 // writing and uses updated_at as a compare-and-swap guard, so a genuine
 // last-second collision is retried against fresh data rather than silently
 // let through.
+//
+// Payment-required services: the booking is created as status "pending" and
+// HOLDS the slot immediately (so nobody else can grab it while the customer
+// is on the GCash screen), but auto-expires after paymentHoldMinutes (default
+// 30, resolved from booking_page_settings, capped at 60) UNLESS a payment
+// screenshot has already been submitted for it — see isHeld() below. This
+// mirrors the "30 min default, configurable up to 1hr" decision from the
+// original bookings design conversation.
 
 import crypto from "node:crypto";
 
@@ -63,12 +71,23 @@ const minutesBetween = (start, end) => {
   if (diff <= 0) diff += 1440;
   return diff;
 };
+
+// A booking still holds its slot unless: it's cancelled, OR it's an
+// unpaid "pending" booking whose hold window has expired. Once a payment
+// screenshot is attached, it holds indefinitely regardless of expiresAt —
+// it's now awaiting a human, not an abandoned checkout.
+const isHeld = (b) => {
+  if (b.status === "cancelled") return false;
+  if (b.status === "pending" && !b.paymentScreenshotPath && b.expiresAt && new Date(b.expiresAt).getTime() < Date.now()) return false;
+  return true;
+};
+
 const hasConflict = (bookings, resourceId, date, time, durationMinutes, excludeId) => {
   if (!resourceId || !time) return false;
   const newEnd = addMinutes(time, durationMinutes || 30);
   return bookings.some(b => {
     if (b.id === excludeId) return false;
-    if (b.status === "cancelled") return false;
+    if (!isHeld(b)) return false;
     if (b.resourceId !== resourceId || b.date !== date || !b.time) return false;
     const bEnd = addMinutes(b.time, b.durationMinutes || 30);
     return time < bEnd && b.time < newEnd;
@@ -80,13 +99,15 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { slug, serviceId, resourceId, date, time, endTime, customerName, customerPhone, notes } = req.body || {};
+  const { slug, serviceId, resourceId, date, time, endTime, customerFirstName, customerLastName, customerPhone, customerEmail, notes } = req.body || {};
 
   if (!slug) return res.status(400).json({ error: "Missing store" });
   if (!serviceId) return res.status(400).json({ error: "Missing service" });
   if (!date) return res.status(400).json({ error: "Date required" });
-  if (!customerName || !String(customerName).trim()) return res.status(400).json({ error: "Name required" });
+  if (!customerFirstName || !String(customerFirstName).trim()) return res.status(400).json({ error: "First name required" });
+  if (!customerLastName || !String(customerLastName).trim()) return res.status(400).json({ error: "Last name required" });
   if (!customerPhone || !String(customerPhone).trim()) return res.status(400).json({ error: "Phone number required" });
+  if (customerEmail && !/\S+@\S+\.\S+/.test(customerEmail)) return res.status(400).json({ error: "That email doesn't look right" });
 
   const storeRows = await (await supa(`stores?booking_slug=eq.${encodeURIComponent(String(slug).toLowerCase())}&select=id`)).json();
   const store = storeRows[0];
@@ -95,7 +116,7 @@ export default async function handler(req, res) {
   const MAX_ATTEMPTS = 4;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const dataRows = await (await supa(
-      `store_data?store_id=eq.${encodeURIComponent(store.id)}&select=enable_bookings,booking_services,booking_resources,bookings,updated_at`
+      `store_data?store_id=eq.${encodeURIComponent(store.id)}&select=enable_bookings,booking_services,booking_resources,bookings,booking_page_settings,updated_at`
     )).json();
     const row = dataRows[0];
     if (!row || !row.enable_bookings) return res.status(404).json({ error: "Bookings are not enabled for this store" });
@@ -126,17 +147,25 @@ export default async function handler(req, res) {
       }
     }
 
+    const requiresPayment = !!svc.requiresPayment;
+    const holdMinutes = Math.min(60, Math.max(5, Number(row.booking_page_settings?.paymentHoldMinutes) || 30));
+
     const toSave = {
       id: "bk" + crypto.randomBytes(6).toString("hex"),
       serviceId, serviceName: svc.name,
       resourceId: resourceId || null,
       resourceName: resourceId ? ((row.booking_resources || []).find(r => r.id === resourceId)?.name || "") : null,
       customerId: null,
-      customerName: String(customerName).trim(),
+      customerName: `${String(customerFirstName).trim()} ${String(customerLastName).trim()}`,
+      customerFirstName: String(customerFirstName).trim(),
+      customerLastName: String(customerLastName).trim(),
       customerPhone: String(customerPhone).trim(),
+      customerEmail: customerEmail ? String(customerEmail).trim() : "",
       date, time: time || "", endTime: endTime || undefined,
       durationMinutes,
-      status: "confirmed", // Stage 3 payment flow will likely gate this behind a "pending" state before confirming
+      amount: svc.price || 0,
+      status: requiresPayment ? "pending" : "confirmed",
+      expiresAt: requiresPayment ? new Date(Date.now() + holdMinutes * 60000).toISOString() : null,
       notes: notes ? String(notes).trim() : "",
       createdAt: new Date().toISOString(),
       createdBy: "online booking",
@@ -150,7 +179,7 @@ export default async function handler(req, res) {
     );
     const patched = patchRes.ok ? await patchRes.json() : [];
     if (patched.length > 0) {
-      return res.status(200).json({ ok: true, bookingId: toSave.id });
+      return res.status(200).json({ ok: true, bookingId: toSave.id, requiresPayment, amount: toSave.amount });
     }
     // updated_at moved under us (someone else wrote in between) — loop and
     // re-check against whatever is there now.
