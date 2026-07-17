@@ -101,7 +101,8 @@ export default function BillPaymentApp() {
           <div style={{ width: 56, height: 56, borderRadius: 14, overflow: "hidden", margin: "0 auto 12px" }}>
             <img src="/icons/icon-192.png" alt="NJ POS" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           </div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#111" }}>NJ POS</div>
+          <div style={{ fontFamily: "'Michroma',sans-serif", fontSize: 20, letterSpacing: 1 }}><span style={{color:"#2563EB"}}>NJ</span><span style={{color:"#0F172A"}}>POS</span></div>
+          <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 500, fontSize: 10, color: "#6b7280", marginTop: 6, letterSpacing: 0.5 }}>SMART POS. BETTER BUSINESS.</div>
         </div>
 
         <div style={{ background: "#fff", borderRadius: 18, padding: "30px 26px", boxShadow: "0 4px 24px rgba(0,0,0,0.06)" }}>
