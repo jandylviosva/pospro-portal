@@ -133,7 +133,7 @@ export default async function handler(req, res) {
         subject: `Bill payment received — ${storeName || "a store"} (${fmtPeso(amount)})`,
         html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f9fafb">
           <div style="background:#2563EB;border-radius:12px;padding:20px;text-align:center;margin-bottom:24px">
-            <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-.02em">NJ POS</div>
+            <img src="https://owner.nj-systems.com/email-logo.png" alt="NJ POS" width="183" height="55" style="display:block;margin:0 auto;"/>
           </div>
           <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb">
             <h2 style="color:#111;margin:0 0 12px;font-size:19px">Bill payment received</h2>
