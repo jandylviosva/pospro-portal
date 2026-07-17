@@ -94,7 +94,7 @@ export default async function handler(req, res) {
         subject: `NJ POS Report: ${reportTitle||"Report"}${storeName ? " — " + storeName : ""}`,
         html: `<div style="font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:24px">
           <div style="background:#2563EB;border-radius:12px;padding:18px;text-align:center;margin-bottom:20px">
-            <div style="color:#fff;font-size:20px;font-weight:800">NJ POS</div>
+            <img src="https://owner.nj-systems.com/email-logo.png" alt="NJ POS" width="183" height="55" style="display:block;margin:0 auto;"/>
             <div style="color:rgba(255,255,255,0.6);font-size:12px">${storeName||"Store Report"}</div>
           </div>
           <h2 style="font-size:16px;color:#111;margin-bottom:16px">${reportTitle||"Report"}</h2>
@@ -123,7 +123,7 @@ export default async function handler(req, res) {
         html: `
           <div style="font-family:sans-serif;max-width:460px;margin:0 auto;padding:24px">
             <div style="background:#2563EB;border-radius:12px;padding:18px;text-align:center;margin-bottom:20px">
-              <div style="color:#fff;font-size:20px;font-weight:800">NJ POS</div>
+              <img src="https://owner.nj-systems.com/email-logo.png" alt="NJ POS" width="183" height="55" style="display:block;margin:0 auto;"/>
               <div style="color:rgba(255,255,255,0.6);font-size:12px">${storeName||"Your Store"}</div>
             </div>
             <h2 style="font-size:16px;color:#111;margin-bottom:8px">Your free trial has ended ⏰</h2>
@@ -193,7 +193,7 @@ export default async function handler(req, res) {
         html: `
           <div style="font-family:sans-serif;max-width:420px;margin:0 auto;padding:24px">
             <div style="background:#2563EB;border-radius:12px;padding:18px;text-align:center;margin-bottom:20px">
-              <div style="color:#fff;font-size:20px;font-weight:800">NJ POS</div>
+              <img src="https://owner.nj-systems.com/email-logo.png" alt="NJ POS" width="183" height="55" style="display:block;margin:0 auto;"/>
               <div style="color:rgba(255,255,255,0.6);font-size:12px">${storeName || store.store_name || "Owner Portal"}</div>
             </div>
             <h2 style="font-size:16px;color:#111;margin-bottom:6px">${subject}</h2>
