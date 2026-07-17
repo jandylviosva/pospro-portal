@@ -139,7 +139,7 @@ export default async function handler(req, res) {
       `
       <div style="font-family:sans-serif;max-width:460px;margin:0 auto;padding:24px">
         <div style="background:#2563EB;border-radius:12px;padding:18px;text-align:center;margin-bottom:20px">
-          <div style="color:#fff;font-size:20px;font-weight:800">NJ POS</div>
+          <img src="https://owner.nj-systems.com/email-logo.png" alt="NJ POS" width="183" height="55" style="display:block;margin:0 auto;"/>
           <div style="color:rgba(255,255,255,0.6);font-size:12px">3-Day Free Trial</div>
         </div>
         <h2 style="font-size:16px;color:#111;margin-bottom:6px">Hi ${ownerName}! 👋</h2>
