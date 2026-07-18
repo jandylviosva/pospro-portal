@@ -6,6 +6,7 @@
 // touches Supabase directly for any of this.
 
 import crypto from "node:crypto";
+import { checkVoucher } from "./validate-voucher.js";
 
 const ALLOWED_ORIGINS = [
   "https://owner.nj-systems.com",
@@ -92,7 +93,7 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { customerName, customerEmail, storeName, plan, breakdown, amount, screenshotBase64 } = req.body || {};
+  const { customerName, customerEmail, storeName, plan, breakdown, amount, fullAmount, voucherCode, screenshotBase64 } = req.body || {};
 
   if (!customerName || !customerEmail || !storeName) {
     return res.status(400).json({ error: "Missing name, email, or store name" });
@@ -103,6 +104,27 @@ export default async function handler(req, res) {
   if (!screenshotBase64) {
     return res.status(400).json({ error: "Missing payment screenshot" });
   }
+
+  // Voucher — never trust the discount amount the client displayed.
+  // Re-run the exact same checks (active, not expired, right plan,
+  // email restriction, usage caps) here, and compute the discount
+  // ourselves from the voucher's own type/value against the full
+  // (pre-discount) total.
+  const baseTotal = Number(fullAmount ?? amount) || 0;
+  let discountAmount = 0;
+  let appliedDiscount = null;
+  if (voucherCode) {
+    const check = await checkVoucher({ code: voucherCode, email: customerEmail, plan: plan === "annual" ? "annual" : "monthly" });
+    if (!check.ok) {
+      return res.status(400).json({ error: `Voucher error: ${check.error}` });
+    }
+    appliedDiscount = check.discount;
+    discountAmount = appliedDiscount.type === "percentage"
+      ? Math.round(baseTotal * (Number(appliedDiscount.value) / 100) * 100) / 100
+      : Number(appliedDiscount.value);
+    discountAmount = Math.min(Math.max(discountAmount, 0), baseTotal);
+  }
+  const finalAmount = Math.max(0, baseTotal - discountAmount);
 
   let screenshotPath;
   try {
@@ -120,7 +142,10 @@ export default async function handler(req, res) {
       customer_name: customerName,
       customer_email: customerEmail,
       store_name: storeName,
-      amount: Number(amount) || 0,
+      amount: finalAmount,
+      full_amount: baseTotal,
+      discount_amount: discountAmount,
+      discount_code: appliedDiscount ? appliedDiscount.code : null,
       plan: plan === "annual" ? "annual" : "standard_monthly",
       method: "GCash",
       notes: notesLines || null,
@@ -134,6 +159,29 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: `Failed to record payment: ${t}` });
   }
 
+  // Record the redemption and bump the usage counter now that the
+  // payment has actually been submitted — not at validation time,
+  // which would let someone burn through a limited-use code just by
+  // checking it repeatedly without ever paying.
+  if (appliedDiscount) {
+    const created = await createRes.json().catch(() => []);
+    const paymentRecordId = created?.[0]?.id || null;
+    try {
+      await supaTable("discount_redemptions", "", {
+        method: "POST",
+        body: JSON.stringify([{
+          discount_id: appliedDiscount.id,
+          email: customerEmail.trim().toLowerCase(),
+          payment_record_id: paymentRecordId,
+        }]),
+      });
+      await supaTable("discount_codes", `?id=eq.${appliedDiscount.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ used_count: (appliedDiscount.used_count || 0) + 1 }),
+      });
+    } catch { /* redemption bookkeeping failure shouldn't fail the payment submission itself */ }
+  }
+
   // Best-effort notification — a failure here shouldn't fail the whole
   // submission, since the payment record itself is already safely saved
   // and reviewable from the Dev Console either way.
@@ -142,7 +190,7 @@ export default async function handler(req, res) {
     try {
       await sendResendEmail(RESEND_KEY, {
         to: OWNER_NOTIFY_EMAIL,
-        subject: `New payment submission — ${storeName} (${fmtPeso(amount)})`,
+        subject: `New payment submission — ${storeName} (${fmtPeso(finalAmount)})`,
         // Table-based layout for the breakdown, not flexbox — most email
         // clients (Outlook especially, but plenty of others too) either
         // ignore or badly mis-render CSS flexbox in HTML email, which is
@@ -162,8 +210,9 @@ export default async function handler(req, res) {
               <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Breakdown</div>
               <table style="width:100%;border-collapse:collapse">
                 ${(breakdown || []).map(i => `<tr><td style="padding:5px 0;font-size:14px;color:#374151">${i.label}</td><td style="padding:5px 0;font-size:14px;color:#374151;text-align:right;white-space:nowrap">${fmtPeso(i.amount)}</td></tr>`).join("")}
+                ${discountAmount > 0 ? `<tr><td style="padding:5px 0;font-size:14px;color:#16a34a">Voucher (${appliedDiscount.code})</td><td style="padding:5px 0;font-size:14px;color:#16a34a;text-align:right;white-space:nowrap">-${fmtPeso(discountAmount)}</td></tr>` : ""}
                 <tr><td colspan="2" style="border-top:1px solid #ddd6fe;padding-top:10px;line-height:1px">&nbsp;</td></tr>
-                <tr><td style="font-weight:800;font-size:16px;color:#111">Total</td><td style="font-weight:800;font-size:16px;color:#2563EB;text-align:right;white-space:nowrap">${fmtPeso(amount)}</td></tr>
+                <tr><td style="font-weight:800;font-size:16px;color:#111">Total</td><td style="font-weight:800;font-size:16px;color:#2563EB;text-align:right;white-space:nowrap">${fmtPeso(finalAmount)}</td></tr>
               </table>
             </div>
             <p style="color:#6b7280;font-size:13px;margin:20px 0 0">Review and confirm this in the Dev Console → Payments.</p>

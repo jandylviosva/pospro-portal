@@ -9,7 +9,7 @@ import { useState, useEffect } from "react";
 // ₱99 one-time add-on, regardless of which base plan was chosen.
 const PLAN_PRICE = { monthly: 399, annual: 3999 };
 const DEVICE_PRICE = 149;
-const DEVICE_PRICE_ANNUAL = DEVICE_PRICE * 12;
+const DEVICE_PRICE_ANNUAL = 1499;
 const FEATURE_PRICE = 99;
 const FEATURES = [
   { key: "invoice",   label: "Invoicing Module",        desc: "Create and track customer invoices with payment status" },
@@ -96,7 +96,47 @@ export default function PaymentApp() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  const [voucherInput, setVoucherInput] = useState("");
+  const [voucher, setVoucher] = useState(null); // {code, type, value} once successfully applied
+  const [voucherError, setVoucherError] = useState("");
+  const [voucherChecking, setVoucherChecking] = useState(false);
+
   const { items, total } = computeBreakdown(plan, addons);
+  const discountAmount = voucher
+    ? Math.min(
+        Math.max(voucher.type === "percentage" ? Math.round(total * (voucher.value / 100) * 100) / 100 : voucher.value, 0),
+        total
+      )
+    : 0;
+  const finalTotal = Math.max(0, total - discountAmount);
+
+  const applyVoucher = async () => {
+    setVoucherError("");
+    if (!voucherInput.trim()) { setVoucherError("Enter a voucher code"); return; }
+    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) { setVoucherError("Enter your email above first"); return; }
+    setVoucherChecking(true);
+    try {
+      const res = await fetch("/api/validate-voucher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: voucherInput.trim(), email: email.trim(), plan }),
+      });
+      const data = await res.json();
+      if (!data.ok) { setVoucherError(data.error || "Invalid voucher"); setVoucher(null); return; }
+      setVoucher({ code: data.code, type: data.type, value: data.value });
+    } catch {
+      setVoucherError("Could not check voucher — try again");
+    } finally {
+      setVoucherChecking(false);
+    }
+  };
+  const removeVoucher = () => { setVoucher(null); setVoucherInput(""); setVoucherError(""); };
+  // A voucher's validity depends on the exact plan and email it was
+  // checked against — if either changes after applying, silently
+  // keeping the discount would mean charging a discount that was never
+  // actually re-verified for the new plan/email.
+  useEffect(() => { if (voucher) removeVoucher(); }, [plan]);
+  useEffect(() => { if (voucher) removeVoucher(); }, [email]);
 
   const handleFile = (e) => {
     const f = e.target.files[0];
@@ -135,7 +175,9 @@ export default function PaymentApp() {
           plan,
           addons,
           breakdown: items,
-          amount: total,
+          fullAmount: total,
+          amount: finalTotal,
+          voucherCode: voucher ? voucher.code : null,
           screenshotBase64: screenshotPreview,
         }),
       });
@@ -257,8 +299,16 @@ export default function PaymentApp() {
               <h2 style={{ margin: "0 0 6px", fontSize: 19 }}>Complete your payment</h2>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f5f3ff", borderRadius: 10, padding: "12px 16px", marginBottom: 20 }}>
                 <span style={{ fontSize: 13, color: "#2563EB", fontWeight: 700 }}>Total to pay</span>
-                <span style={{ fontSize: 20, fontWeight: 800, color: "#2563EB" }}>{fmt(total)}</span>
+                <div style={{ textAlign: "right" }}>
+                  {discountAmount > 0 && <div style={{ fontSize: 12, color: "#9ca3af", textDecoration: "line-through" }}>{fmt(total)}</div>}
+                  <span style={{ fontSize: 20, fontWeight: 800, color: "#2563EB" }}>{fmt(finalTotal)}</span>
+                </div>
               </div>
+              {discountAmount > 0 && (
+                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "6px 12px", marginBottom: 14, fontSize: 12, color: "#166534", fontWeight: 700, textAlign: "center" }}>
+                  Voucher {voucher.code} applied — you saved {fmt(discountAmount)}
+                </div>
+              )}
 
               <div style={{ textAlign: "center", marginBottom: 18 }}>
                 <img src={QR_IMAGE_URL} alt="GCash QR" style={{ width: 220, height: 220, borderRadius: 12, border: "1px solid #e5e7eb" }} />
@@ -274,7 +324,7 @@ export default function PaymentApp() {
               </div>
 
               <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 18, lineHeight: 1.6 }}>
-                1. Pay {fmt(total)} via the QR code or GCash number above.<br />
+                1. Pay {fmt(finalTotal)} via the QR code or GCash number above.<br />
                 2. Fill in your details below and upload your payment screenshot.<br />
                 3. We'll email you your activation code once we've confirmed your payment.
               </div>
@@ -282,6 +332,20 @@ export default function PaymentApp() {
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
                 <input value={name} onChange={e => setName(e.target.value)} placeholder="Your name" style={inputStyle} />
                 <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address (required)" type="email" style={inputStyle} />
+                {voucher ? (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", border: "1px solid #bbf7d0", background: "#f0fdf4", borderRadius: 10 }}>
+                    <span style={{ fontSize: 13, color: "#166534", fontWeight: 700 }}><i className="ti ti-ticket" style={{ marginRight: 6 }} />{voucher.code} applied</span>
+                    <button onClick={removeVoucher} style={{ background: "none", border: "none", cursor: "pointer", color: "#166534", fontSize: 12, textDecoration: "underline" }}>Remove</button>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input value={voucherInput} onChange={e => { setVoucherInput(e.target.value); setVoucherError(""); }} placeholder="Voucher code (optional)" style={{ ...inputStyle, flex: 1 }} />
+                    <button onClick={applyVoucher} disabled={voucherChecking} style={{ padding: "0 18px", background: "#fff", border: "1px solid #2563EB", color: "#2563EB", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: voucherChecking ? 0.6 : 1, whiteSpace: "nowrap" }}>
+                      {voucherChecking ? "Checking…" : "Apply"}
+                    </button>
+                  </div>
+                )}
+                {voucherError && <div style={{ fontSize: 11, color: "#dc2626" }}>{voucherError}</div>}
                 <input value={storeName} onChange={e => setStoreName(e.target.value)} placeholder="Store name" style={inputStyle} />
                 <div>
                   <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px dashed #d1d5db", borderRadius: 10, cursor: "pointer" }}>
