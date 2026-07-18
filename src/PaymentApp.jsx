@@ -1,14 +1,15 @@
 import { useState, useEffect } from "react";
 
 // ── PRICING ──
-// Base plan price is per-month for "monthly", one-time for "lifetime".
-// Extra device slots: ₱149 either way — recurring per month on the
-// monthly plan, a single one-time charge on lifetime (same number,
-// different billing cadence). Invoice/Purchase Orders/Kitchen Ticket/
-// Open Bills are always a flat ₱99 one-time add-on, regardless of
-// which base plan was chosen.
-const PLAN_PRICE = { monthly: 399, lifetime: 8999 };
+// Base plan price is per-month for "monthly", per-year for "annual".
+// Extra device slots recur on the same cadence as the base plan: monthly
+// on the Standard plan, yearly (₱149 × 12) on the Annual plan — there's
+// no more one-time pricing now that Annual, like Standard, renews.
+// Invoice/Purchase Orders/Kitchen Ticket/Open Bills are always a flat
+// ₱99 one-time add-on, regardless of which base plan was chosen.
+const PLAN_PRICE = { monthly: 399, annual: 3999 };
 const DEVICE_PRICE = 149;
+const DEVICE_PRICE_ANNUAL = DEVICE_PRICE * 12;
 const FEATURE_PRICE = 99;
 const FEATURES = [
   { key: "invoice",   label: "Invoicing Module",        desc: "Create and track customer invoices with payment status" },
@@ -23,15 +24,15 @@ const GCASH_NUMBER = "0956-013-7170";
 function computeBreakdown(plan, addons) {
   const items = [];
   items.push({
-    label: plan === "monthly" ? "Standard Plan (Monthly)" : "Lifetime Plan (One-time)",
+    label: plan === "monthly" ? "Standard Plan (Monthly)" : "Annual Plan (Billed Yearly)",
     amount: PLAN_PRICE[plan],
   });
   if (addons.devices > 0) {
     items.push({
       label: plan === "monthly"
         ? `Extra Device Slot × ${addons.devices} (₱${DEVICE_PRICE}/mo each)`
-        : `Extra Device Slot × ${addons.devices} (one-time)`,
-      amount: DEVICE_PRICE * addons.devices,
+        : `Extra Device Slot × ${addons.devices} (₱${DEVICE_PRICE_ANNUAL}/yr each)`,
+      amount: (plan === "monthly" ? DEVICE_PRICE : DEVICE_PRICE_ANNUAL) * addons.devices,
     });
   }
   FEATURES.forEach(f => {
@@ -74,7 +75,7 @@ function StepDots({ step }) {
 
 export default function PaymentApp() {
   const params = new URLSearchParams(window.location.search);
-  const initialPlan = params.get("plan") === "lifetime" ? "lifetime" : "monthly";
+  const initialPlan = params.get("plan") === "annual" ? "annual" : "monthly";
 
   const [step, setStep] = useState("plan");
   const LANDING_PAGE_URL = "https://www.nj-systems.com";
@@ -178,10 +179,10 @@ export default function PaymentApp() {
                   <div style={{ fontSize: 24, fontWeight: 800, color: "#2563EB" }}>₱399<span style={{ fontSize: 13, color: "#9ca3af", fontWeight: 600 }}>/mo</span></div>
                   <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>Billed monthly, cancel anytime</div>
                 </button>
-                <button style={cardStyle(plan === "lifetime")} onClick={() => setPlan("lifetime")}>
-                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Lifetime</div>
-                  <div style={{ fontSize: 24, fontWeight: 800, color: "#2563EB" }}>₱8,999</div>
-                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>One-time payment, yours forever</div>
+                <button style={cardStyle(plan === "annual")} onClick={() => setPlan("annual")}>
+                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>Annual</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: "#2563EB" }}>₱3,999<span style={{ fontSize: 13, color: "#9ca3af", fontWeight: 600 }}>/yr</span></div>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>Billed yearly — save ₱789 vs. monthly</div>
                 </button>
               </div>
               <button onClick={() => setStep("addons")} style={{ width: "100%", padding: "13px 0", background: "#2563EB", color: "#fff", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
@@ -199,7 +200,7 @@ export default function PaymentApp() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0", borderBottom: "1px solid #f0f0f0" }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>Extra Device Slots</div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>{plan === "monthly" ? `₱${DEVICE_PRICE}/mo each` : `₱${DEVICE_PRICE} one-time each`}</div>
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>{plan === "monthly" ? `₱${DEVICE_PRICE}/mo each` : `₱${DEVICE_PRICE_ANNUAL}/yr each`}</div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <button onClick={() => setAddons(a => ({ ...a, devices: Math.max(0, a.devices - 1) }))} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff", cursor: "pointer", fontSize: 16 }}>−</button>
