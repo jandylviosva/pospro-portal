@@ -121,7 +121,7 @@ export default async function handler(req, res) {
       customer_email: customerEmail,
       store_name: storeName,
       amount: Number(amount) || 0,
-      plan: plan === "lifetime" ? "lifetime" : "standard_monthly",
+      plan: plan === "annual" ? "annual" : "standard_monthly",
       method: "GCash",
       notes: notesLines || null,
       screenshot_url: screenshotPath,
