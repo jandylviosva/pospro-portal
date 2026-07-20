@@ -45,11 +45,12 @@ const MAX_IMAGES = 5;
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024; // generous headroom even after client-side compression
 
 async function uploadReviewImage(imageBase64, idx) {
+  const label = idx === "avatar" ? "Profile photo" : `Image ${Number(idx) + 1}`;
   const match = /^data:(image\/(png|jpeg|jpg|webp|gif));base64,(.+)$/.exec(imageBase64 || "");
-  if (!match) throw new Error(`Image ${idx + 1}: unsupported format (use PNG, JPG, WEBP, or GIF)`);
+  if (!match) throw new Error(`${label}: unsupported format (use PNG, JPG, WEBP, or GIF)`);
   const contentType = match[1];
   const buffer = Buffer.from(match[3], "base64");
-  if (buffer.length > MAX_IMAGE_BYTES) throw new Error(`Image ${idx + 1} is too large`);
+  if (buffer.length > MAX_IMAGE_BYTES) throw new Error(`${label} is too large`);
 
   const SUPA_URL = process.env.SUPA_URL || process.env.VITE_SUPA_URL;
   const SUPA_SERVICE_KEY = process.env.SUPA_SERVICE_KEY;
@@ -67,7 +68,7 @@ async function uploadReviewImage(imageBase64, idx) {
   });
   if (!uploadRes.ok) {
     const t = await uploadRes.text().catch(() => "");
-    throw new Error(`Image ${idx + 1} upload failed: ${t}`);
+    throw new Error(`${label} upload failed: ${t}`);
   }
   return `${SUPA_URL}/storage/v1/object/public/review-images/${path}`;
 }
@@ -77,7 +78,7 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { name, businessType, city, rating, reviewText, email, images, hp } = req.body || {};
+  const { name, businessType, city, rating, reviewText, email, avatarImage, images, hp } = req.body || {};
 
   // Honeypot — a hidden field real users never see or fill in, but a
   // simple bot filling every field in a form often does. Silently
@@ -111,6 +112,15 @@ export default async function handler(req, res) {
     }
   }
 
+  let avatarUrl = null;
+  if (avatarImage) {
+    try {
+      avatarUrl = await uploadReviewImage(avatarImage, "avatar");
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: e.message || "Failed to upload profile photo" });
+    }
+  }
+
   try {
     const insertRes = await supaTable("testimonials", "", {
       method: "POST",
@@ -121,6 +131,7 @@ export default async function handler(req, res) {
         rating: numRating,
         review_text: reviewText.trim(),
         email: email ? email.trim().toLowerCase() : null,
+        avatar_url: avatarUrl,
         images: imageUrls,
         status: "pending",
       }]),
